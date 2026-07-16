@@ -1,0 +1,6 @@
+{
+  "name": "Agrasen Business Management System",
+  "description": "Enterprise-grade digital operating system for Agrasen Flex Printers, including CRM, ERP, Inventory, Pricing Calculators, and Job Scheduling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
