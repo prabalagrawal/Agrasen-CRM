@@ -21,7 +21,8 @@ import {
   Menu,
   X,
   PlusCircle,
-  Truck
+  Truck,
+  MapPin
 } from 'lucide-react';
 
 import {
@@ -67,6 +68,7 @@ import FollowUpPanel from './components/FollowUpPanel';
 import StaffPortal from './components/StaffPortal';
 import OwnerDashboard from './components/OwnerDashboard';
 import SystemBlueprints from './components/SystemBlueprints';
+import SiteSurveyJobSystem from './components/SiteSurveyJobSystem';
 
 export default function App() {
   // Global states (Language and Access Control Role)
@@ -450,6 +452,15 @@ export default function App() {
                   {t('billingTab')}
                 </button>
                 <button
+                  onClick={() => setActiveTab('site_survey')}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                    activeTab === 'site_survey' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  <MapPin className="w-4.5 h-4.5 shrink-0" />
+                  {t('siteSurvey')}
+                </button>
+                <button
                   onClick={() => setActiveTab('scheduler')}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
                     activeTab === 'scheduler' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
@@ -510,6 +521,15 @@ export default function App() {
                   {t('billingTab')}
                 </button>
                 <button
+                  onClick={() => setActiveTab('site_survey')}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                    activeTab === 'site_survey' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  <MapPin className="w-4.5 h-4.5 shrink-0" />
+                  {t('siteSurvey')}
+                </button>
+                <button
                   onClick={() => setActiveTab('scheduler')}
                   className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
                     activeTab === 'scheduler' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
@@ -541,6 +561,15 @@ export default function App() {
                 >
                   <Briefcase className="w-4.5 h-4.5 shrink-0" />
                   {t('staffPortal')}
+                </button>
+                <button
+                  onClick={() => setActiveTab('site_survey')}
+                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                    activeTab === 'site_survey' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  <MapPin className="w-4.5 h-4.5 shrink-0" />
+                  {t('siteSurvey')}
                 </button>
                 <button
                   onClick={() => setActiveTab('calculators')}
@@ -627,6 +656,18 @@ export default function App() {
               onAddJobFromCalc={handleAddJob}
               userRole={userRole}
               lang={lang}
+              customers={customers}
+              onAddQuotation={handleAddQuotation}
+            />
+          )}
+
+          {activeTab === 'site_survey' && (
+            <SiteSurveyJobSystem
+              lang={lang}
+              userRole={userRole}
+              customers={customers}
+              jobs={jobs}
+              onUpdateJobStatus={handleUpdateJobStatus}
             />
           )}
 

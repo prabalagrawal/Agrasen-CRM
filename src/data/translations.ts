@@ -60,6 +60,7 @@ export const translations = {
     reports: 'Reports & Analytics',
     blueprints: 'System Blueprint & SRS',
     billingTab: 'Billing & Invoices',
+    siteSurvey: 'Site Survey & Installation',
 
     // Pricing Calculator
     calculatorTitle: 'Smart Production Cost & Selling Price Calculator',
@@ -165,6 +166,7 @@ export const translations = {
     reports: 'रिपोर्ट और विश्लेषण',
     blueprints: 'सॉफ्टवेयर ब्लूप्रिंट (SRS)',
     billingTab: 'बिलिंग और इनवॉइस',
+    siteSurvey: 'साइट सर्वे और फिटिंग',
 
     // Pricing Calculator
     calculatorTitle: 'उत्पादन लागत और बिक्री मूल्य कैलकुलेटर',
