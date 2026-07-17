@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   Briefcase,
   Users,
@@ -15,14 +16,28 @@ import {
   FileText,
   Tag,
   PhoneCall,
-  Mail,
   ShieldAlert,
   Sparkles,
-  Menu,
-  X,
   PlusCircle,
   Truck,
-  MapPin
+  MapPin,
+  Menu,
+  X,
+  Lock,
+  Unlock,
+  LogOut,
+  Shield,
+  ShieldCheck,
+  UserCheck,
+  UserX,
+  History,
+  Activity,
+  Terminal,
+  Clock,
+  Check,
+  UserPlus,
+  RefreshCw,
+  Search
 } from 'lucide-react';
 
 import {
@@ -69,12 +84,176 @@ import StaffPortal from './components/StaffPortal';
 import OwnerDashboard from './components/OwnerDashboard';
 import SystemBlueprints from './components/SystemBlueprints';
 import SiteSurveyJobSystem from './components/SiteSurveyJobSystem';
+import UXRedesignPortal from './components/UXRedesignPortal';
+
+// --- NEW RBAC DATA TYPES ---
+export interface EmployeePermissions {
+  viewDashboard: boolean;
+  viewCRM: boolean;
+  viewCalculators: boolean;
+  viewInventory: boolean;
+  viewTickets: boolean;
+  viewBilling: boolean;
+  viewSurvey: boolean;
+  viewScheduler: boolean;
+  viewFollowups: boolean;
+  viewReports: boolean;
+  viewUserManagement: boolean;
+  viewAuditLog: boolean;
+  // Actions
+  createQuotation: boolean;
+  deleteRecords: boolean;
+  viewPricing: boolean;
+  changeSettings: boolean;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  username: string;
+  passwordHash: string; // Plain for demo/mock simplicity
+  role: 'Super Admin' | 'Office Executive' | 'Production Team' | 'Field Team';
+  department: string;
+  status: 'Active' | 'Deactivated';
+  permissions: EmployeePermissions;
+  loginHistory: { timestamp: string; device: string }[];
+  activityLogs: { timestamp: string; action: string; details: string }[];
+}
+
+export interface AuditLog {
+  id: string;
+  username: string;
+  action: string;
+  timestamp: string;
+  device: string;
+  beforeValue: string;
+  afterValue: string;
+}
+
+const DEFAULT_EMPLOYEES: Employee[] = [
+  {
+    id: 'EMP-001',
+    name: 'Ramesh Sharma',
+    username: 'ramesh',
+    passwordHash: '123',
+    role: 'Super Admin',
+    department: 'Administration',
+    status: 'Active',
+    permissions: {
+      viewDashboard: true,
+      viewCRM: true,
+      viewCalculators: true,
+      viewInventory: true,
+      viewTickets: true,
+      viewBilling: true,
+      viewSurvey: true,
+      viewScheduler: true,
+      viewFollowups: true,
+      viewReports: true,
+      viewUserManagement: true,
+      viewAuditLog: true,
+      createQuotation: true,
+      deleteRecords: true,
+      viewPricing: true,
+      changeSettings: true
+    },
+    loginHistory: [],
+    activityLogs: []
+  },
+  {
+    id: 'EMP-002',
+    name: 'Sunita Gupta',
+    username: 'sunita',
+    passwordHash: '123',
+    role: 'Office Executive',
+    department: 'Sales & Front Office',
+    status: 'Active',
+    permissions: {
+      viewDashboard: true,
+      viewCRM: true,
+      viewCalculators: true,
+      viewInventory: true,
+      viewTickets: true,
+      viewBilling: true,
+      viewSurvey: true,
+      viewScheduler: true,
+      viewFollowups: true,
+      viewReports: false,
+      viewUserManagement: false,
+      viewAuditLog: false,
+      createQuotation: true,
+      deleteRecords: false,
+      viewPricing: true,
+      changeSettings: false
+    },
+    loginHistory: [],
+    activityLogs: []
+  },
+  {
+    id: 'EMP-003',
+    name: 'Dilip Kumar',
+    username: 'dilip',
+    passwordHash: '123',
+    role: 'Production Team',
+    department: 'Printing & Finishing Shop',
+    status: 'Active',
+    permissions: {
+      viewDashboard: true,
+      viewCRM: false,
+      viewCalculators: false,
+      viewInventory: true,
+      viewTickets: true,
+      viewBilling: false,
+      viewSurvey: false,
+      viewScheduler: false,
+      viewFollowups: false,
+      viewReports: false,
+      viewUserManagement: false,
+      viewAuditLog: false,
+      createQuotation: false,
+      deleteRecords: false,
+      viewPricing: false,
+      changeSettings: false
+    },
+    loginHistory: [],
+    activityLogs: []
+  },
+  {
+    id: 'EMP-004',
+    name: 'Raju Singh',
+    username: 'raju',
+    passwordHash: '123',
+    role: 'Field Team',
+    department: 'Logistics & Installation',
+    status: 'Active',
+    permissions: {
+      viewDashboard: true,
+      viewCRM: false,
+      viewCalculators: false,
+      viewInventory: false,
+      viewTickets: true,
+      viewBilling: false,
+      viewSurvey: true,
+      viewScheduler: true,
+      viewFollowups: false,
+      viewReports: false,
+      viewUserManagement: false,
+      viewAuditLog: false,
+      createQuotation: false,
+      deleteRecords: false,
+      viewPricing: false,
+      changeSettings: false
+    },
+    loginHistory: [],
+    activityLogs: []
+  }
+];
 
 export default function App() {
-  // Global states (Language and Access Control Role)
+  // --- STATE STORES ---
   const [lang, setLang] = useState<Language>('EN');
-  const [userRole, setUserRole] = useState<UserRole>('Owner');
-  const [activeTab, setActiveTab] = useState<string>('owner_dashboard');
+  const [activeTab, setActiveTab] = useState<string>('ux_redesign_portal');
+  const [isWorkspaceLoading, setIsWorkspaceLoading] = useState<boolean>(false);
 
   // Core business models loaded from local storage or mock files
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -87,8 +266,44 @@ export default function App() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [rates, setRates] = useState<CalculatorRates>(INITIAL_RATES);
 
-  // Initialize and load from localStorage
+  // --- NEW RBAC STATES ---
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+
+  // Login Screen Input States
+  const [loginUsername, setLoginUsername] = useState<string>('');
+  const [loginPassword, setLoginPassword] = useState<string>('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  
+  // Custom Session Lock timer
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState<number>(15);
+  const [lastActivityTime, setLastActivityTime] = useState<number>(Date.now());
+
+  // --- COMPACT MANAGER CONTROLS FOR SUPER ADMIN ---
+  const [mgmtSearch, setMgmtSearch] = useState<string>('');
+  const [mgmtTab, setMgmtTab] = useState<'employees' | 'permissions' | 'audit_log'>('employees');
+  const [selectedMgmtEmployee, setSelectedMgmtEmployee] = useState<string>('EMP-001');
+
+  // New Employee fields
+  const [newEmpName, setNewEmpName] = useState<string>('');
+  const [newEmpUser, setNewEmpUser] = useState<string>('');
+  const [newEmpPass, setNewEmpPass] = useState<string>('');
+  const [newEmpRole, setNewEmpRole] = useState<'Super Admin' | 'Office Executive' | 'Production Team' | 'Field Team'>('Office Executive');
+  const [newEmpDept, setNewEmpDept] = useState<string>('');
+
+  // Intelligent Workspace Tab Transition Skeleton Trigger
   useEffect(() => {
+    setIsWorkspaceLoading(true);
+    const timer = setTimeout(() => {
+      setIsWorkspaceLoading(false);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
+
+  // Initial Data Seed & Sync Loader
+  useEffect(() => {
+    // Core Models loading
     const localJobs = localStorage.getItem('abms_jobs');
     const localCust = localStorage.getItem('abms_customers');
     const localMat = localStorage.getItem('abms_materials');
@@ -108,30 +323,185 @@ export default function App() {
     setQuotations(localQuotes ? JSON.parse(localQuotes) : INITIAL_QUOTATIONS);
     setInvoices(localInvs ? JSON.parse(localInvs) : INITIAL_INVOICES);
     if (localRates) setRates(JSON.parse(localRates));
+
+    // RBAC System loading
+    const localEmps = localStorage.getItem('abms_employees');
+    const localAudits = localStorage.getItem('abms_system_audit_logs');
+    const localSession = localStorage.getItem('abms_active_session_employee');
+
+    const seedEmps = localEmps ? JSON.parse(localEmps) : DEFAULT_EMPLOYEES;
+    setEmployees(seedEmps);
+    setAuditLogs(localAudits ? JSON.parse(localAudits) : []);
+    
+    if (localSession) {
+      setCurrentEmployee(JSON.parse(localSession));
+    }
   }, []);
 
-  // Save changes to localStorage helper
+  // Save changes helper
   const saveState = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
   };
 
-  // State mutators synced to localStorage
+  // --- DETAILED AUDIT LOG GENERATOR ---
+  const writeAuditLog = (action: string, details: string, beforeValue = '', afterValue = '', actorOverride?: Employee) => {
+    const actor = actorOverride || currentEmployee;
+    const newLog: AuditLog = {
+      id: `AUDIT-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+      username: actor ? `${actor.name} (${actor.role})` : 'System Workspace',
+      action,
+      timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
+      device: navigator.userAgent.includes('Android') ? 'Android Mobile Device' : 'Desktop Admin Terminal',
+      beforeValue,
+      afterValue
+    };
+
+    const updatedLogs = [newLog, ...auditLogs];
+    setAuditLogs(updatedLogs);
+    saveState('abms_system_audit_logs', updatedLogs);
+
+    // Sync back to employee individual activity log
+    if (actor) {
+      const updatedEmployees = employees.map(emp => {
+        if (emp.id === actor.id) {
+          return {
+            ...emp,
+            activityLogs: [{ timestamp: newLog.timestamp, action, details }, ...emp.activityLogs]
+          };
+        }
+        return emp;
+      });
+      setEmployees(updatedEmployees);
+      saveState('abms_employees', updatedEmployees);
+    }
+  };
+
+  // Keep Track of Session Timeout
+  useEffect(() => {
+    const checkTimeout = setInterval(() => {
+      if (currentEmployee && sessionTimeoutMinutes > 0) {
+        const timeDiff = Date.now() - lastActivityTime;
+        if (timeDiff > sessionTimeoutMinutes * 60 * 1000) {
+          handleLogout('Session Inactivity Lockout Triggered');
+        }
+      }
+    }, 15000);
+    return () => clearInterval(checkTimeout);
+  }, [currentEmployee, lastActivityTime, sessionTimeoutMinutes]);
+
+  // Update last activity timer on click / keydown
+  const handleUserActivity = () => {
+    setLastActivityTime(Date.now());
+  };
+
+  // --- CORE LOGIN HANDLERS ---
+  const handleLogin = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setLoginError(null);
+
+    const user = employees.find(emp => emp.username.toLowerCase() === loginUsername.trim().toLowerCase());
+    if (!user) {
+      setLoginError('Authentication Failed: Username not registered.');
+      return;
+    }
+
+    if (user.status === 'Deactivated') {
+      setLoginError('Account Status: DEACTIVATED. Contact Ramesh Sharma (Super Admin) for reactivation.');
+      return;
+    }
+
+    if (user.passwordHash !== loginPassword) {
+      setLoginError('Incorrect password entered. Hint: default is 123.');
+      return;
+    }
+
+    // Success Authentication
+    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+    const device = navigator.userAgent.includes('Android') ? 'Android Mobile Device' : 'Desktop Admin Terminal';
+    
+    const updatedUser = {
+      ...user,
+      loginHistory: [{ timestamp, device }, ...user.loginHistory]
+    };
+
+    const updatedEmployees = employees.map(emp => emp.id === user.id ? updatedUser : emp);
+    setEmployees(updatedEmployees);
+    saveState('abms_employees', updatedEmployees);
+
+    setCurrentEmployee(updatedUser);
+    saveState('abms_active_session_employee', updatedUser);
+    
+    // Set appropriate initial tab
+    if (user.role === 'Super Admin') setActiveTab('owner_dashboard');
+    else if (user.role === 'Office Executive') setActiveTab('crm');
+    else if (user.role === 'Production Team') setActiveTab('staff_portal');
+    else if (user.role === 'Field Team') setActiveTab('staff_portal');
+
+    setLoginUsername('');
+    setLoginPassword('');
+    setLastActivityTime(Date.now());
+
+    // Record system logs
+    writeAuditLog('User Login Success', `Logged in via ${device}`, '', `Active: ${user.name}`, updatedUser);
+  };
+
+  const handleLogout = (reason = 'Manual Logout') => {
+    if (currentEmployee) {
+      writeAuditLog('User Logout', reason, `Active: ${currentEmployee.name}`, '');
+    }
+    setCurrentEmployee(null);
+    localStorage.removeItem('abms_active_session_employee');
+    setActiveTab('ux_redesign_portal');
+  };
+
+  const handleQuickDemoLogin = (username: string) => {
+    const user = employees.find(emp => emp.username === username);
+    if (user) {
+      setLoginUsername(user.username);
+      setLoginPassword(user.passwordHash);
+      setTimeout(() => {
+        // Direct execution
+        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+        const device = navigator.userAgent.includes('Android') ? 'Android Mobile Device' : 'Desktop Admin Terminal';
+        const updatedUser = {
+          ...user,
+          loginHistory: [{ timestamp, device }, ...user.loginHistory]
+        };
+        const updatedEmployees = employees.map(emp => emp.id === user.id ? updatedUser : emp);
+        setEmployees(updatedEmployees);
+        saveState('abms_employees', updatedEmployees);
+        setCurrentEmployee(updatedUser);
+        saveState('abms_active_session_employee', updatedUser);
+        
+        if (user.role === 'Super Admin') setActiveTab('owner_dashboard');
+        else if (user.role === 'Office Executive') setActiveTab('crm');
+        else if (user.role === 'Production Team') setActiveTab('staff_portal');
+        else if (user.role === 'Field Team') setActiveTab('staff_portal');
+        
+        setLastActivityTime(Date.now());
+        writeAuditLog('User Demo Login Success', `Logged in using Quick-Profile via ${device}`, '', `Active: ${user.name}`, updatedUser);
+      }, 100);
+    }
+  };
+
+  // --- AUDIT-LOG WRAPPED MUTATORS ---
   const handleUpdateJobStatus = (id: string, status: JobStatus, photoUrl?: string, note?: string) => {
+    const beforeJob = jobs.find(j => j.id === id);
     const updatedJobs = jobs.map((j) => {
       if (j.id === id) {
         const historyItem = {
           status,
           timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          changedBy: `Logged User (${userRole})`,
-          role: userRole
+          changedBy: currentEmployee ? `${currentEmployee.name} (${currentEmployee.role})` : 'System Duty',
+          role: currentEmployee ? currentEmployee.role : 'Super Admin'
         };
         
         const updatedNotes = [...j.notes];
         if (note) {
           updatedNotes.push({
             id: `N-${Date.now()}`,
-            author: `Logged User (${userRole})`,
-            role: userRole,
+            author: currentEmployee ? currentEmployee.name : 'System Duty',
+            role: currentEmployee ? currentEmployee.role : 'Super Admin',
             text: note,
             date: new Date().toISOString().replace('T', ' ').substring(0, 16)
           });
@@ -152,8 +522,17 @@ export default function App() {
       }
       return j;
     });
+
     setJobs(updatedJobs);
     saveState('abms_jobs', updatedJobs);
+
+    // Audit logs entry
+    writeAuditLog(
+      'Updated Job Status', 
+      `Job ${id} status moved to ${status}`, 
+      beforeJob ? beforeJob.status : 'None', 
+      status
+    );
   };
 
   const handleAddJob = (job: { title: string; description: string; cost: number; customerName: string }) => {
@@ -174,8 +553,8 @@ export default function App() {
         {
           status: 'Quotation',
           timestamp: new Date().toISOString().replace('T', ' ').substring(0, 16),
-          changedBy: `Logged User (${userRole})`,
-          role: userRole
+          changedBy: currentEmployee ? `${currentEmployee.name} (${currentEmployee.role})` : 'System Duty',
+          role: currentEmployee ? currentEmployee.role : 'Super Admin'
         }
       ],
       installationRequired: false
@@ -184,15 +563,22 @@ export default function App() {
     const updated = [newJob, ...jobs];
     setJobs(updated);
     saveState('abms_jobs', updated);
+
+    writeAuditLog('Added New Job', `Created Job ${newJob.id}: "${job.title}" for ₹${job.cost}`, '', job.title);
   };
 
   const handleAddCustomer = (c: Customer) => {
     const updated = [c, ...customers];
     setCustomers(updated);
     saveState('abms_customers', updated);
+
+    writeAuditLog('Added New Customer', `Created CRM record for "${c.name}"`, '', c.name);
   };
 
   const handleUpdateStock = (materialId: string, type: 'IN' | 'OUT', qty: number, reason: string) => {
+    const materialObj = materials.find(m => m.id === materialId);
+    const beforeLevel = materialObj ? materialObj.stockLevel : 0;
+    
     const updated = materials.map((m) => {
       if (m.id === materialId) {
         const newLevel = type === 'IN' ? m.stockLevel + qty : Math.max(0, m.stockLevel - qty);
@@ -202,7 +588,7 @@ export default function App() {
           type,
           qty,
           reason,
-          user: `Duty staff (${userRole})`
+          user: currentEmployee ? `${currentEmployee.name} (${currentEmployee.role})` : 'System Duty'
         };
         return {
           ...m,
@@ -212,30 +598,43 @@ export default function App() {
       }
       return m;
     });
+
     setMaterials(updated);
     saveState('abms_materials', updated);
+
+    writeAuditLog(
+      'Updated Material Stock', 
+      `Stock adjustment ${type} by ${qty} units: "${reason}"`, 
+      `${beforeLevel} Units`, 
+      `${type === 'IN' ? beforeLevel + qty : Math.max(0, beforeLevel - qty)} Units`
+    );
   };
 
   const handleAddMaterial = (m: Material) => {
     const updated = [m, ...materials];
     setMaterials(updated);
     saveState('abms_materials', updated);
+
+    writeAuditLog('Added Raw Material Catalog', `Created material block ${m.name}`, '', m.name);
   };
 
   const handleAddTicket = (tkt: Ticket) => {
     const updated = [tkt, ...tickets];
     setTickets(updated);
     saveState('abms_tickets', updated);
+
+    writeAuditLog('Raised Support Ticket', `Ticket ${tkt.id} filed: "${tkt.title}"`, '', tkt.title);
   };
 
   const handleUpdateTicketStatus = (ticketId: string, status: TicketStatus, note?: string) => {
+    const beforeTicket = tickets.find(t => t.id === ticketId);
     const updated = tickets.map((t) => {
       if (t.id === ticketId) {
         const updatedNotes = [...t.notes];
         if (note) {
           updatedNotes.push({
             id: `TN-${Date.now()}`,
-            author: `Duty staff (${userRole})`,
+            author: currentEmployee ? currentEmployee.name : 'System Duty',
             text: note,
             date: new Date().toISOString().replace('T', ' ').substring(0, 16)
           });
@@ -248,53 +647,77 @@ export default function App() {
       }
       return t;
     });
+
     setTickets(updated);
     saveState('abms_tickets', updated);
+
+    writeAuditLog(
+      'Updated Ticket Status', 
+      `Ticket ${ticketId} status resolved to "${status}"`, 
+      beforeTicket ? beforeTicket.status : 'None', 
+      status
+    );
   };
 
   const handleToggleFollowUp = (id: string) => {
+    const followObj = followUps.find(f => f.id === id);
     const updated = followUps.map((f) => {
       if (f.id === id) {
         return { ...f, isCompleted: !f.isCompleted };
       }
       return f;
     });
+
     setFollowUps(updated);
     saveState('abms_followups', updated);
+
+    writeAuditLog(
+      'Toggled Follow-up Check', 
+      `Follow-up check for ${followObj ? followObj.customerName : 'Client'} toggled`, 
+      followObj && followObj.isCompleted ? 'Completed' : 'Pending', 
+      followObj && followObj.isCompleted ? 'Pending' : 'Completed'
+    );
   };
 
   const handleAddFollowUp = (flp: FollowUp) => {
     const updated = [flp, ...followUps];
     setFollowUps(updated);
     saveState('abms_followups', updated);
+
+    writeAuditLog('Created Follow-up Task', `Follow-up title: "${flp.title}"`, '', flp.title);
   };
 
   const handleAddQuotation = (q: Quotation) => {
     const updated = [q, ...quotations];
     setQuotations(updated);
     saveState('abms_quotations', updated);
+
+    writeAuditLog('Generated Sales Quotation', `Quotation ${q.id} drafted for ₹${q.total}`, '', q.id);
   };
 
   const handleAddInvoice = (inv: Invoice) => {
     const updated = [inv, ...invoices];
     setInvoices(updated);
     saveState('abms_invoices', updated);
+
+    writeAuditLog('Generated Commercial Invoice', `Invoice ${inv.invoiceNumber} drafted for ₹${inv.total}`, '', inv.invoiceNumber);
   };
 
   const handleUpdateRates = (newRates: CalculatorRates) => {
     setRates(newRates);
     saveState('abms_rates', newRates);
+
+    writeAuditLog('Configured Base Calculator Rates', 'Modified default product margins or installation base pricing', '', 'CalculatorRates');
   };
 
-  // Staff raises ticket through portal helper
   const handleRaiseTicketFromStaff = (title: string, desc: string, type: string) => {
     const newTicket: Ticket = {
       id: `TCK-0${tickets.length + 1}`,
       title,
       type: type as any,
       description: desc || 'Raised automatically on duty.',
-      raisedBy: `Workspace Staff (${userRole})`,
-      raisedByRole: userRole,
+      raisedBy: currentEmployee ? `${currentEmployee.name} (${currentEmployee.role})` : 'System Staff',
+      raisedByRole: currentEmployee ? currentEmployee.role : 'Production Team',
       status: 'Open',
       priority: 'High',
       createdDate: new Date().toISOString().split('T')[0],
@@ -303,337 +726,688 @@ export default function App() {
     handleAddTicket(newTicket);
   };
 
+  // --- ADMIN PERMISSION MUTATORS ---
+  const handleCreateEmployee = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmpName.trim() || !newEmpUser.trim() || !newEmpPass.trim() || !newEmpDept.trim()) {
+      alert('All employee parameters must be filled');
+      return;
+    }
+
+    const checkExist = employees.find(emp => emp.username.toLowerCase() === newEmpUser.toLowerCase().trim());
+    if (checkExist) {
+      alert('Username already registered in database');
+      return;
+    }
+
+    const defaultPerms: EmployeePermissions = {
+      viewDashboard: true,
+      viewCRM: newEmpRole !== 'Production Team' && newEmpRole !== 'Field Team',
+      viewCalculators: newEmpRole !== 'Production Team' && newEmpRole !== 'Field Team',
+      viewInventory: newEmpRole !== 'Field Team',
+      viewTickets: true,
+      viewBilling: newEmpRole !== 'Production Team' && newEmpRole !== 'Field Team',
+      viewSurvey: newEmpRole !== 'Production Team',
+      viewScheduler: newEmpRole !== 'Production Team',
+      viewFollowups: newEmpRole !== 'Production Team' && newEmpRole !== 'Field Team',
+      viewReports: newEmpRole === 'Super Admin',
+      viewUserManagement: newEmpRole === 'Super Admin',
+      viewAuditLog: newEmpRole === 'Super Admin',
+      createQuotation: newEmpRole === 'Super Admin' || newEmpRole === 'Office Executive',
+      deleteRecords: newEmpRole === 'Super Admin',
+      viewPricing: newEmpRole === 'Super Admin' || newEmpRole === 'Office Executive',
+      changeSettings: newEmpRole === 'Super Admin'
+    };
+
+    const newEmp: Employee = {
+      id: `EMP-${Date.now().toString().substring(9)}`,
+      name: newEmpName.trim(),
+      username: newEmpUser.trim().toLowerCase(),
+      passwordHash: newEmpPass,
+      role: newEmpRole,
+      department: newEmpDept.trim(),
+      status: 'Active',
+      permissions: defaultPerms,
+      loginHistory: [],
+      activityLogs: []
+    };
+
+    const updated = [...employees, newEmp];
+    setEmployees(updated);
+    saveState('abms_employees', updated);
+
+    // Reset fields
+    setNewEmpName('');
+    setNewEmpUser('');
+    setNewEmpPass('');
+    setNewEmpDept('');
+
+    writeAuditLog('Registered New Employee Profile', `Added ${newEmp.name} as ${newEmp.role} inside ${newEmp.department}`, '', newEmp.name);
+    alert(`🎉 Successfully registered: ${newEmp.name} (Role: ${newEmp.role})`);
+  };
+
+  const handleToggleEmployeeStatus = (empId: string) => {
+    const target = employees.find(e => e.id === empId);
+    if (!target) return;
+    if (target.id === 'EMP-001') {
+      alert('Cannot deactivate the root Super Admin Ramesh Sharma');
+      return;
+    }
+
+    const nextStatus = target.status === 'Active' ? 'Deactivated' : 'Active';
+    const updated = employees.map(emp => {
+      if (emp.id === empId) {
+        return { ...emp, status: nextStatus as any };
+      }
+      return emp;
+    });
+
+    setEmployees(updated);
+    saveState('abms_employees', updated);
+
+    // If deactivating current logged in employee, force logout
+    if (currentEmployee && currentEmployee.id === empId && nextStatus === 'Deactivated') {
+      handleLogout('Session Terminated: Deactivated by Administration');
+    }
+
+    writeAuditLog('Modified Employee Account Status', `Moved ${target.name} to ${nextStatus}`, target.status, nextStatus);
+  };
+
+  const handleResetEmployeePassword = (empId: string) => {
+    const target = employees.find(e => e.id === empId);
+    if (!target) return;
+    const nextPass = prompt(`Enter new password for ${target.name}:`, '123');
+    if (!nextPass) return;
+
+    const updated = employees.map(emp => {
+      if (emp.id === empId) {
+        return { ...emp, passwordHash: nextPass };
+      }
+      return emp;
+    });
+
+    setEmployees(updated);
+    saveState('abms_employees', updated);
+    writeAuditLog('Reset Employee Password', `Modified credential hashes for ${target.name}`, '', 'UPDATED');
+    alert(`Password reset successful for ${target.name}`);
+  };
+
+  const handleTogglePermission = (empId: string, permissionKey: keyof EmployeePermissions) => {
+    if (empId === 'EMP-001') {
+      alert('Root Super Admin permissions cannot be modified.');
+      return;
+    }
+
+    const updated = employees.map(emp => {
+      if (emp.id === empId) {
+        const nextVal = !emp.permissions[permissionKey];
+        const updatedPerms = {
+          ...emp.permissions,
+          [permissionKey]: nextVal
+        };
+        return {
+          ...emp,
+          permissions: updatedPerms
+        };
+      }
+      return emp;
+    });
+
+    setEmployees(updated);
+    saveState('abms_employees', updated);
+
+    // If modifying currently logged in user, immediately update active session state
+    if (currentEmployee && currentEmployee.id === empId) {
+      const targetUser = updated.find(u => u.id === empId);
+      if (targetUser) {
+        setCurrentEmployee(targetUser);
+        saveState('abms_active_session_employee', targetUser);
+      }
+    }
+
+    const targetEmp = employees.find(e => e.id === empId);
+    writeAuditLog(
+      'Updated Role Permissions Matrix', 
+      `Toggled "${permissionKey}" for ${targetEmp ? targetEmp.name : 'Employee'}`, 
+      'Toggled', 
+      'Commit'
+    );
+  };
+
   // Helper dictionary lookup
   const t = (key: keyof typeof translations.EN) => {
     return translations[lang][key] || translations['EN'][key];
   };
 
-  // Dynamically set default view when switching userRole to match RBAC guidelines
-  useEffect(() => {
-    if (userRole === 'Owner') setActiveTab('owner_dashboard');
-    else if (userRole === 'Manager') setActiveTab('owner_dashboard');
-    else if (userRole === 'Reception') setActiveTab('crm');
-    else if (userRole === 'Designer' || userRole === 'Operator' || userRole === 'Delivery') setActiveTab('staff_portal');
-    else if (userRole === 'Customer') setActiveTab('public_website');
-  }, [userRole]);
+  // --- ROLE AND BACKWARD COMPATIBILITY MAPS ---
+  const getSubcomponentRole = (): UserRole => {
+    if (!currentEmployee) return 'Customer';
+    const r = currentEmployee.role;
+    if (r === 'Super Admin') return 'Owner';
+    if (r === 'Office Executive') return 'Reception';
+    if (r === 'Production Team') return 'Operator';
+    if (r === 'Field Team') return 'Delivery';
+    return 'Customer';
+  };
 
+  const activeSubRole = getSubcomponentRole();
+
+  // Filter Search
+  const filteredMgmtEmployees = employees.filter(emp => 
+    emp.name.toLowerCase().includes(mgmtSearch.toLowerCase()) || 
+    emp.role.toLowerCase().includes(mgmtSearch.toLowerCase()) ||
+    emp.department.toLowerCase().includes(mgmtSearch.toLowerCase())
+  );
+
+  const selectedMgmtEmpObj = employees.find(emp => emp.id === selectedMgmtEmployee);
+
+  // --- RENDER FLOWS ---
+
+  // FLOW 1: AUTHENTICATION LOCKOUT SCREEN (Login Page)
+  if (!currentEmployee) {
+    return (
+      <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col justify-between antialiased font-sans" id="rbac-auth-gate">
+
+        {/* Simple Top Header Bar */}
+        <header className="px-6 py-4 flex items-center justify-between border-b border-zinc-200/60 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-zinc-100 rounded-xl flex items-center justify-center">
+              <Briefcase className="w-5 h-5 text-zinc-700" />
+            </div>
+            <div>
+              <h1 className="text-sm font-semibold tracking-tight text-zinc-900">
+                AGRASEN BUSINESS OPERATING SYSTEM
+              </h1>
+              <p className="text-[10px] text-zinc-450 font-mono">Agrasen Flex Printers • Gateway Active</p>
+            </div>
+          </div>
+
+          {/* Lang Selector on login gate */}
+          <div className="bg-zinc-100 p-0.5 rounded-xl border border-zinc-200 flex">
+            <button
+              onClick={() => setLang('EN')}
+              className={`px-3 py-1 rounded-lg font-mono font-medium text-[10px] transition-all cursor-pointer ${lang === 'EN' ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200/50' : 'text-zinc-500 hover:text-zinc-900'}`}
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLang('HI')}
+              className={`px-3 py-1 rounded-lg font-mono font-medium text-[10px] transition-all cursor-pointer ${lang === 'HI' ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200/50' : 'text-zinc-500 hover:text-zinc-900'}`}
+            >
+              हिन्दी
+            </button>
+          </div>
+        </header>
+
+        {/* Central Auth Login Card */}
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="w-full max-w-md bg-white border border-zinc-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs">
+            <div className="text-center space-y-1.5">
+              <h2 className="text-lg font-semibold text-zinc-900 tracking-tight">
+                Employee Authentication
+              </h2>
+              <p className="text-xs text-zinc-400">
+                Sign in with your assigned individual employee credentials. Shared logins are audited and logged.
+              </p>
+            </div>
+
+            {/* Error notifications */}
+            {loginError && (
+              <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-xs text-red-650 font-medium flex items-center gap-2 animate-fadeIn">
+                <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
+                <span>{loginError}</span>
+              </div>
+            )}
+
+            {/* Credential Inputs Form */}
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Username</label>
+                <input
+                  type="text"
+                  required
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="Enter employee username"
+                  className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-900 focus:bg-white focus:border-zinc-500 outline-none transition-all"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="••••••••"
+                  className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-medium text-zinc-900 focus:bg-white focus:border-zinc-500 outline-none transition-all"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white text-xs uppercase tracking-wider font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Unlock className="w-4 h-4" /> Unlock Workspace
+              </button>
+            </form>
+
+            {/* Quick Demo-Profile Sign-Ins Panel */}
+            <div className="border-t border-zinc-100 pt-5 space-y-2.5">
+              <span className="block text-[10px] font-medium uppercase tracking-wider text-zinc-400 text-center">
+                Interactive Testing Sandbox Profiles:
+              </span>
+              
+              <div className="grid grid-cols-2 gap-2">
+                {DEFAULT_EMPLOYEES.map((emp) => (
+                  <button
+                    key={emp.username}
+                    onClick={() => handleQuickDemoLogin(emp.username)}
+                    className="p-3 text-left bg-zinc-50 hover:bg-zinc-100/60 border border-zinc-200/80 rounded-xl cursor-pointer transition-all"
+                  >
+                    <span className="block text-xs font-semibold text-zinc-900">{emp.name}</span>
+                    <span className="block text-[9px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">{emp.role}</span>
+                    <span className="block text-[8px] text-zinc-450 font-mono mt-1">user: {emp.username} • pass: 123</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Security disclaimer */}
+            <p className="text-[8px] font-mono text-zinc-450 text-center uppercase tracking-wide">
+              WARNING: ALL WORKSPACE LOGINS ARE ENCRYPTED AND AUDITED
+            </p>
+          </div>
+        </main>
+
+        {/* Footer credits */}
+        <footer className="py-4 border-t border-zinc-200/60 text-center text-[10px] font-mono text-zinc-450 bg-white">
+          <span>Registered License: Ramesh Sharma (Super Admin) • Agrasen Flex Printers Delhi, India</span>
+        </footer>
+      </div>
+    );
+  }
+
+  // FLOW 2: FULLY AUTHENTICATED WORKSPACE
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col antialiased">
-      {/* Top Header bar */}
-      <header className="bg-white text-slate-900 border-b border-slate-200 shadow-sm px-6 py-4 sticky top-0 z-30 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-red-50 rounded-xl border border-red-100 flex items-center justify-center">
-            <Briefcase className="w-6 h-6 text-red-600 animate-pulse" />
+    <div 
+      className="min-h-screen bg-white text-zinc-900 font-sans flex flex-col md:flex-row antialiased" 
+      id="authenticated-workspace-root"
+      onMouseMove={handleUserActivity}
+      onKeyDown={handleUserActivity}
+    >
+      
+      {/* LEFT SIDEBAR WORKSPACE NAVIGATION (Notion / Linear / ClickUp inspired) */}
+      <aside className="w-full md:w-64 bg-[#fcfcfd] border-r border-zinc-200/40 shrink-0 flex flex-col justify-between p-5 md:sticky md:top-0 md:h-screen">
+        
+        {/* Top: Branding & Intelligent Spotlight Trigger */}
+        <div className="space-y-6">
+          
+          {/* Elegant Display Branding */}
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center text-white shrink-0 shadow-[0_2px_4px_rgba(0,0,0,0.1)]">
+              <span className="text-sm font-black font-display tracking-tight">A</span>
+            </div>
+            <div>
+              <h1 className="text-sm font-bold tracking-tight text-zinc-900">
+                AGRASEN OS
+              </h1>
+              <p className="text-[10px] text-zinc-400 font-mono tracking-wider uppercase">Business Workspace</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-xl font-extrabold tracking-tight flex items-center gap-2 text-slate-900">
-              {t('appName')} <span className="text-[10px] bg-red-600 text-white px-2 py-0.5 rounded-md font-mono font-bold uppercase tracking-wider">ERP v1.0</span>
-            </h1>
-            <p className="text-[10px] text-slate-500 font-mono font-medium">Agrasen Flex Printers Digital Operating Command Center</p>
+
+          {/* Clean Module Selectors (एक्सेस मॉड्यूल) */}
+          <div className="space-y-1">
+            <span className="block text-[9px] font-bold uppercase tracking-widest text-zinc-400 px-2 mb-2">
+              Workspaces
+            </span>
+
+            {/* Dashboard permission toggle */}
+            {currentEmployee.permissions.viewDashboard && (currentEmployee.role === 'Super Admin' || currentEmployee.role === 'Office Executive') && (
+              <button
+                onClick={() => setActiveTab('owner_dashboard')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'owner_dashboard' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5 shrink-0" />
+                {t('dashboard')}
+              </button>
+            )}
+
+            {/* CRM permission toggle */}
+            {currentEmployee.permissions.viewCRM && (
+              <button
+                onClick={() => setActiveTab('crm')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'crm' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Users className="w-3.5 h-3.5 shrink-0" />
+                {t('crm')}
+              </button>
+            )}
+
+            {/* Estimate Builder permission toggle */}
+            {currentEmployee.permissions.viewCalculators && (
+              <button
+                onClick={() => setActiveTab('calculators')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'calculators' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Settings className="w-3.5 h-3.5 shrink-0" />
+                {t('calculatorHub')}
+              </button>
+            )}
+
+            {/* Inventory permission toggle */}
+            {currentEmployee.permissions.viewInventory && (
+              <button
+                onClick={() => setActiveTab('inventory')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'inventory' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Layers className="w-3.5 h-3.5 shrink-0" />
+                {t('inventory')}
+              </button>
+            )}
+
+            {/* Ticket System permission toggle */}
+            {currentEmployee.permissions.viewTickets && (
+              <button
+                onClick={() => setActiveTab('tickets')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'tickets' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Tag className="w-3.5 h-3.5 shrink-0" />
+                {t('ticketSystem')}
+              </button>
+            )}
+
+            {/* Billing permission toggle */}
+            {currentEmployee.permissions.viewBilling && (
+              <button
+                onClick={() => setActiveTab('billing')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'billing' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5 shrink-0" />
+                {t('billingTab')}
+              </button>
+            )}
+
+            {/* Site Survey permission toggle */}
+            {currentEmployee.permissions.viewSurvey && (
+              <button
+                onClick={() => setActiveTab('site_survey')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'site_survey' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                {t('siteSurvey')}
+              </button>
+            )}
+
+            {/* Scheduler permission toggle */}
+            {currentEmployee.permissions.viewScheduler && (
+              <button
+                onClick={() => setActiveTab('scheduler')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'scheduler' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                {t('scheduler')}
+              </button>
+            )}
+
+            {/* Follow Ups permission toggle */}
+            {currentEmployee.permissions.viewFollowups && (
+              <button
+                onClick={() => setActiveTab('followups')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'followups' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <PhoneCall className="w-3.5 h-3.5 shrink-0" />
+                {t('followUpSystem')}
+              </button>
+            )}
+
+            {/* Reports permission toggle */}
+            {currentEmployee.permissions.viewReports && (
+              <button
+                onClick={() => setActiveTab('reports')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'reports' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                {t('reports')}
+              </button>
+            )}
+
+            {/* Combined staff checkin portal */}
+            {(currentEmployee.role === 'Production Team' || currentEmployee.role === 'Field Team') && (
+              <button
+                onClick={() => setActiveTab('staff_portal')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'staff_portal' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <Briefcase className="w-3.5 h-3.5 shrink-0" />
+                Check-In Portal
+              </button>
+            )}
+
+            {/* SUPER ADMIN CONSOLE: Employee Management & Audit Logs */}
+            {currentEmployee.permissions.viewUserManagement && (
+              <button
+                onClick={() => setActiveTab('user_management')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'user_management' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                Users & Auditing
+              </button>
+            )}
+
           </div>
+
+          {/* Evaluation Anchors (Styled beautifully) */}
+          <div className="space-y-1">
+            <span className="block text-[9px] font-bold uppercase tracking-widest text-zinc-400 px-2 mb-2">
+              Redesign Review
+            </span>
+            <button
+              onClick={() => setActiveTab('ux_redesign_portal')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                activeTab === 'ux_redesign_portal' 
+                  ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                  : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0 text-zinc-700" />
+              11 Redesign Deliverables
+            </button>
+            <button
+              onClick={() => setActiveTab('blueprints')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                activeTab === 'blueprints' 
+                  ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                  : 'hover:bg-zinc-100/50 text-zinc-400 hover:text-zinc-900'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-zinc-400" />
+              {t('blueprints')}
+            </button>
+          </div>
+
         </div>
 
-        {/* Global Controls: Language and Role Switching */}
-        <div className="flex flex-wrap items-center gap-4 text-xs">
-          {/* Language Switcher */}
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-semibold">{t('langLabel')}</span>
-            <div className="bg-slate-100 p-0.5 rounded-xl border border-slate-200 flex">
+        {/* Bottom: Minimalist Session & Employee Widget Card (No bulky outlines) */}
+        <div className="pt-4 mt-6 border-t border-zinc-100 space-y-3.5">
+          
+          {/* Compact Employee details */}
+          <div className="flex items-center gap-2.5 px-1.5">
+            <div className="w-7 h-7 rounded-lg bg-zinc-900 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
+              {currentEmployee.name[0]}
+            </div>
+            <div className="min-w-0">
+              <span className="block text-xs font-bold text-zinc-900 truncate">{currentEmployee.name}</span>
+              <span className="block text-[10px] text-zinc-400 font-mono truncate">{currentEmployee.role}</span>
+            </div>
+          </div>
+
+          {/* Dynamic Language Toggle & Lock Options */}
+          <div className="grid grid-cols-2 gap-1.5">
+            
+            {/* Lang toggles */}
+            <div className="bg-zinc-100/50 p-0.5 rounded-lg border border-zinc-200/20 flex shrink-0">
               <button
                 onClick={() => setLang('EN')}
-                className={`px-3 py-1 rounded-lg font-mono font-bold text-xs transition-all ${lang === 'EN' ? 'bg-red-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`flex-1 py-1 rounded-md font-mono font-bold text-[9px] transition-all cursor-pointer ${lang === 'EN' ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500 hover:text-zinc-900'}`}
               >
-                🇬🇧 EN
+                EN
               </button>
               <button
                 onClick={() => setLang('HI')}
-                className={`px-3 py-1 rounded-lg font-mono font-bold text-xs transition-all ${lang === 'HI' ? 'bg-red-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`flex-1 py-1 rounded-md font-mono font-bold text-[9px] transition-all cursor-pointer ${lang === 'HI' ? 'bg-white text-zinc-900 shadow-xs' : 'text-zinc-500 hover:text-zinc-900'}`}
               >
-                🇮🇳 हिन्दी
+                HI
               </button>
             </div>
-          </div>
 
-          {/* Role Switcher */}
-          <div className="flex items-center gap-2">
-            <span className="text-slate-500 font-semibold">{t('roleLabel')}</span>
+            {/* Lock options select */}
             <select
-              value={userRole}
-              onChange={(e) => setUserRole(e.target.value as UserRole)}
-              className="bg-slate-100 border border-slate-200 text-slate-800 font-semibold rounded-xl px-3 py-1.5 focus:ring-2 focus:ring-red-500 focus:outline-hidden font-mono text-xs cursor-pointer transition-all hover:bg-slate-200"
+              value={sessionTimeoutMinutes}
+              onChange={(e) => setSessionTimeoutMinutes(parseInt(e.target.value))}
+              className="bg-zinc-50/50 hover:bg-zinc-100/40 border border-zinc-200/40 px-2 py-1 rounded-lg text-[9px] font-mono cursor-pointer focus:outline-none w-full text-zinc-600"
+              title="Session Auto Lock Inactivity Timeout"
             >
-              <option value="Owner">{t('owner')}</option>
-              <option value="Manager">{t('manager')}</option>
-              <option value="Reception">{t('reception')}</option>
-              <option value="Designer">{t('designer')}</option>
-              <option value="Operator">{t('operator')}</option>
-              <option value="Delivery">{t('delivery')}</option>
-              <option value="Customer">{t('customer')}</option>
+              <option value={5}>Lock: 5m</option>
+              <option value={15}>Lock: 15m</option>
+              <option value={60}>Lock: 1h</option>
+              <option value={0}>No Lock</option>
             </select>
-          </div>
-        </div>
-      </header>
 
-      {/* Main workspace container */}
-      <div className="flex-1 flex flex-col md:flex-row">
-        {/* Navigation Rail tailored to active Role permissions */}
-        <nav className="w-full md:w-64 bg-white border-r border-slate-200 py-6 text-slate-700 shrink-0 shadow-2xs">
-          <div className="px-4 mb-6">
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-red-600 text-white font-sans font-extrabold text-center flex items-center justify-center shadow-sm">
-                {userRole[0]}
+          </div>
+
+          {/* Clean, Non-Outlined Logout Action */}
+          <button
+            onClick={() => handleLogout()}
+            className="w-full h-8 bg-zinc-900 hover:bg-zinc-850 text-white font-semibold text-[10px] uppercase tracking-wide rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-all shadow-3xs"
+          >
+            <LogOut className="w-3 h-3" /> Sign Out
+          </button>
+
+        </div>
+      </aside>
+
+
+      {/* Main Content Area & Footer Column Wrapper */}
+      <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* Content Panel Screen Renderer */}
+        <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+          
+          {isWorkspaceLoading ? (
+            <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-pulse" id="workspace-skeleton-shimmer">
+              {/* Breadcrumbs and Section Title */}
+              <div className="space-y-2">
+                <div className="h-3 w-28 bg-zinc-200/60 rounded-md animate-pulse" />
+                <div className="h-8 w-56 bg-zinc-200/80 rounded-lg animate-pulse" />
+                <div className="h-3.5 w-1/2 bg-zinc-200/40 rounded-md animate-pulse" />
               </div>
-              <div>
-                <div className="font-bold text-xs text-slate-900">{userRole} Session</div>
-                <div className="text-[9px] text-emerald-600 font-mono font-bold flex items-center gap-1 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> Online & Secure
+
+              {/* Stats Card Shimmer Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="p-4 bg-zinc-50 border border-zinc-200/20 rounded-2xl space-y-3">
+                    <div className="h-2 w-16 bg-zinc-200/60 rounded" />
+                    <div className="h-6 w-24 bg-zinc-200 rounded animate-pulse" />
+                    <div className="h-2 w-32 bg-zinc-200/40 rounded" />
+                  </div>
+                ))}
+              </div>
+
+              {/* Master-Detail Layout Shimmer */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-2">
+                <div className="lg:col-span-2 space-y-4">
+                  <div className="p-5 bg-zinc-50 border border-zinc-200/20 rounded-2xl space-y-4">
+                    <div className="flex justify-between items-center border-b border-zinc-100 pb-3">
+                      <div className="h-4 w-36 bg-zinc-200/80 rounded animate-pulse" />
+                      <div className="h-6 w-16 bg-zinc-200/60 rounded" />
+                    </div>
+                    <div className="space-y-3">
+                      {[1, 2, 3].map((i) => (
+                        <div key={i} className="flex items-center justify-between py-2 border-b border-zinc-50">
+                          <div className="space-y-1">
+                            <div className="h-3 w-40 bg-zinc-200 rounded" />
+                            <div className="h-2 w-24 bg-zinc-200/40 rounded" />
+                          </div>
+                          <div className="h-6 w-12 bg-zinc-100 rounded animate-pulse" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="p-5 bg-zinc-50 border border-zinc-200/20 rounded-2xl space-y-4">
+                    <div className="h-4 w-28 bg-zinc-200/80 rounded animate-pulse" />
+                    <div className="h-24 bg-zinc-200/20 rounded-xl animate-pulse" />
+                    <div className="space-y-2">
+                      <div className="h-3 w-full bg-zinc-100 rounded" />
+                      <div className="h-3 w-4/5 bg-zinc-100 rounded" />
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Tab lists */}
-          <div className="space-y-1 px-3 font-sans">
-            {/* Owner/Manager Tabs */}
-            {(userRole === 'Owner' || userRole === 'Manager') && (
-              <>
-                <button
-                  onClick={() => setActiveTab('owner_dashboard')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'owner_dashboard' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Briefcase className="w-4.5 h-4.5 shrink-0" />
-                  {t('dashboard')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('crm')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'crm' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-4.5 h-4.5 shrink-0" />
-                  {t('crm')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('calculators')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'calculators' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Settings className="w-4.5 h-4.5 shrink-0" />
-                  {t('calculatorHub')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('inventory')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'inventory' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Layers className="w-4.5 h-4.5 shrink-0" />
-                  {t('inventory')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('tickets')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'tickets' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Tag className="w-4.5 h-4.5 shrink-0" />
-                  {t('ticketSystem')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('billing')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'billing' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-4.5 h-4.5 shrink-0" />
-                  {t('billingTab')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('site_survey')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'site_survey' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <MapPin className="w-4.5 h-4.5 shrink-0" />
-                  {t('siteSurvey')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('scheduler')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'scheduler' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Calendar className="w-4.5 h-4.5 shrink-0" />
-                  {t('scheduler')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('followups')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'followups' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <PhoneCall className="w-4.5 h-4.5 shrink-0" />
-                  {t('followUpSystem')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('reports')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'reports' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <TrendingUp className="w-4.5 h-4.5 shrink-0" />
-                  {t('reports')}
-                </button>
-              </>
-            )}
-
-            {/* Receptionist Tabs */}
-            {userRole === 'Reception' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('crm')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'crm' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Users className="w-4.5 h-4.5 shrink-0" />
-                  {t('crm')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('calculators')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'calculators' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Settings className="w-4.5 h-4.5 shrink-0" />
-                  {t('calculatorHub')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('billing')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'billing' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-4.5 h-4.5 shrink-0" />
-                  {t('billingTab')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('site_survey')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'site_survey' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <MapPin className="w-4.5 h-4.5 shrink-0" />
-                  {t('siteSurvey')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('scheduler')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'scheduler' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Calendar className="w-4.5 h-4.5 shrink-0" />
-                  {t('scheduler')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('followups')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'followups' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <PhoneCall className="w-4.5 h-4.5 shrink-0" />
-                  {t('followUpSystem')}
-                </button>
-              </>
-            )}
-
-            {/* Designer / Operator / Delivery Tabs */}
-            {(userRole === 'Designer' || userRole === 'Operator' || userRole === 'Delivery') && (
-              <>
-                <button
-                  onClick={() => setActiveTab('staff_portal')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'staff_portal' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Briefcase className="w-4.5 h-4.5 shrink-0" />
-                  {t('staffPortal')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('site_survey')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'site_survey' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <MapPin className="w-4.5 h-4.5 shrink-0" />
-                  {t('siteSurvey')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('calculators')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'calculators' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Settings className="w-4.5 h-4.5 shrink-0" />
-                  {t('calculatorHub')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('scheduler')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'scheduler' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Calendar className="w-4.5 h-4.5 shrink-0" />
-                  {t('scheduler')}
-                </button>
-              </>
-            )}
-
-            {/* Customer Portal Tabs */}
-            {userRole === 'Customer' && (
-              <>
-                <button
-                  onClick={() => setActiveTab('public_website')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'public_website' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <Globe className="w-4.5 h-4.5 shrink-0" />
-                  {t('publicWebsite')}
-                </button>
-                <button
-                  onClick={() => setActiveTab('billing')}
-                  className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                    activeTab === 'billing' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <FileText className="w-4.5 h-4.5 shrink-0" />
-                  {t('billingTab')}
-                </button>
-              </>
-            )}
-
-            {/* Blueprints and interactive specifications tab (available globally) */}
-            <div className="pt-4 mt-4 border-t border-slate-200">
-              <button
-                onClick={() => setActiveTab('blueprints')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-                  activeTab === 'blueprints' ? 'bg-red-600 text-white shadow-xs' : 'hover:bg-slate-50 text-red-600 hover:bg-slate-100 hover:text-red-700'
-                }`}
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -6 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full"
               >
-                <ShieldAlert className="w-4.5 h-4.5 shrink-0 text-red-500" />
-                {t('blueprints')}
-              </button>
-            </div>
-          </div>
-        </nav>
-
-        {/* Content Panel Area */}
-        <main className="flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full">
-          {activeTab === 'owner_dashboard' && (userRole === 'Owner' || userRole === 'Manager') && (
+                {/* Dashboard Module */}
+          {activeTab === 'owner_dashboard' && currentEmployee.permissions.viewDashboard && (
             <OwnerDashboard
               jobs={jobs}
               materials={materials}
@@ -645,33 +1419,26 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'crm' && (
+          {/* CRM Module */}
+          {activeTab === 'crm' && currentEmployee.permissions.viewCRM && (
             <CRMPanel customers={customers} onAddCustomer={handleAddCustomer} lang={lang} />
           )}
 
-          {activeTab === 'calculators' && (
+          {/* Estimate Builder / Calculator Module */}
+          {activeTab === 'calculators' && currentEmployee.permissions.viewCalculators && (
             <CalculatorHub
               rates={rates}
               onUpdateRates={handleUpdateRates}
               onAddJobFromCalc={handleAddJob}
-              userRole={userRole}
+              userRole={activeSubRole}
               lang={lang}
               customers={customers}
               onAddQuotation={handleAddQuotation}
             />
           )}
 
-          {activeTab === 'site_survey' && (
-            <SiteSurveyJobSystem
-              lang={lang}
-              userRole={userRole}
-              customers={customers}
-              jobs={jobs}
-              onUpdateJobStatus={handleUpdateJobStatus}
-            />
-          )}
-
-          {activeTab === 'inventory' && (userRole === 'Owner' || userRole === 'Manager') && (
+          {/* Inventory Manager Module */}
+          {activeTab === 'inventory' && currentEmployee.permissions.viewInventory && (
             <InventoryManager
               materials={materials}
               onAddMaterial={handleAddMaterial}
@@ -680,7 +1447,8 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'tickets' && (userRole === 'Owner' || userRole === 'Manager') && (
+          {/* Ticket System Module */}
+          {activeTab === 'tickets' && currentEmployee.permissions.viewTickets && (
             <TicketSystem
               tickets={tickets}
               onAddTicket={handleAddTicket}
@@ -689,7 +1457,8 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'billing' && (
+          {/* Billing & Invoice Module */}
+          {activeTab === 'billing' && currentEmployee.permissions.viewBilling && (
             <QuotationInvoice
               customers={customers}
               quotations={quotations}
@@ -700,11 +1469,24 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'scheduler' && (
+          {/* Site Survey Module */}
+          {activeTab === 'site_survey' && currentEmployee.permissions.viewSurvey && (
+            <SiteSurveyJobSystem
+              lang={lang}
+              userRole={activeSubRole}
+              customers={customers}
+              jobs={jobs}
+              onUpdateJobStatus={handleUpdateJobStatus}
+            />
+          )}
+
+          {/* Scheduler Module */}
+          {activeTab === 'scheduler' && currentEmployee.permissions.viewScheduler && (
             <SmartScheduler lang={lang} />
           )}
 
-          {activeTab === 'followups' && (
+          {/* Follow Ups Module */}
+          {activeTab === 'followups' && currentEmployee.permissions.viewFollowups && (
             <FollowUpPanel
               followUps={followUps}
               onToggleFollowUp={handleToggleFollowUp}
@@ -713,35 +1495,475 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'reports' && (userRole === 'Owner' || userRole === 'Manager') && (
+          {/* Reports Panel */}
+          {activeTab === 'reports' && currentEmployee.permissions.viewReports && (
             <ReportsPanel lang={lang} />
           )}
 
-          {activeTab === 'staff_portal' && (userRole === 'Designer' || userRole === 'Operator' || userRole === 'Delivery') && (
+          {/* Staff Check-In Portal */}
+          {activeTab === 'staff_portal' && (currentEmployee.role === 'Production Team' || currentEmployee.role === 'Field Team') && (
             <StaffPortal
               jobs={jobs}
-              role={userRole}
+              role={activeSubRole}
               onUpdateJobStatus={handleUpdateJobStatus}
               onRaiseTicketFromStaff={handleRaiseTicketFromStaff}
               lang={lang}
             />
           )}
 
+          {/* Public Website */}
           {activeTab === 'public_website' && (
             <PublicWebsite onAddJob={handleAddJob} lang={lang} />
           )}
 
+          {/* System Blueprints */}
           {activeTab === 'blueprints' && (
             <SystemBlueprints />
           )}
+
+          {/* UX Redesign Proposal */}
+          {activeTab === 'ux_redesign_portal' && (
+            <UXRedesignPortal lang={lang} userRole={activeSubRole} />
+          )}
+
+          {/* INTERACTIVE USER MANAGEMENT & AUDIT LOG PANEL */}
+          {activeTab === 'user_management' && currentEmployee.permissions.viewUserManagement && (
+            <div className="space-y-6" id="user-management-control-panel">
+              
+              {/* Header card */}
+              <div className="bg-slate-900 border border-slate-800 text-white rounded-3xl p-6 relative overflow-hidden shadow-xl">
+                <div className="absolute right-0 top-0 w-80 h-80 bg-red-600/10 rounded-full blur-3xl pointer-events-none" />
+                <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="space-y-1.5">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-600 text-white font-mono shadow-md">
+                      <Shield className="w-3.5 h-3.5" />
+                      Security Console
+                    </span>
+                    <h2 className="text-xl font-extrabold tracking-tight">
+                      Access Control & Permissions Directory
+                    </h2>
+                    <p className="text-xs text-slate-300 leading-normal max-w-xl font-medium">
+                      Configure custom employee permission matrices, activate/deactivate accounts, audit active login history sessions, and monitor the global system ledger.
+                    </p>
+                  </div>
+
+                  <div className="flex bg-slate-950 p-1 rounded-2xl border border-slate-850">
+                    <button
+                      onClick={() => setMgmtTab('employees')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        mgmtTab === 'employees' ? 'bg-red-600 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Employees
+                    </button>
+                    <button
+                      onClick={() => setMgmtTab('permissions')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        mgmtTab === 'permissions' ? 'bg-red-600 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <Shield className="w-3.5 h-3.5" />
+                      Permissions Grid
+                    </button>
+                    <button
+                      onClick={() => setMgmtTab('audit_log')}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        mgmtTab === 'audit_log' ? 'bg-red-600 text-white font-black' : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      Audit Ledger
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* SEARCH FILTER BAR FOR ADMIN PANEL */}
+              {mgmtTab === 'employees' && (
+                <div className="bg-white border border-slate-200 rounded-3xl p-4 flex items-center gap-3 shadow-xs">
+                  <Search className="w-5 h-5 text-slate-400 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search employees by name, role, department..."
+                    value={mgmtSearch}
+                    onChange={(e) => setMgmtSearch(e.target.value)}
+                    className="w-full bg-transparent text-sm font-bold text-slate-850 outline-hidden placeholder-slate-400"
+                  />
+                </div>
+              )}
+
+              {/* TAB CONTAINER 1: EMPLOYEE DIRECTORY & CREATION */}
+              {mgmtTab === 'employees' && (
+                <div className="grid lg:grid-cols-12 gap-6">
+                  
+                  {/* Left Column: Register Employee Form (4 cols) */}
+                  <div className="lg:col-span-4 bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-xs h-fit">
+                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                      <UserPlus className="w-4 h-4 text-red-600" />
+                      Register New Employee
+                    </h3>
+
+                    <form onSubmit={handleCreateEmployee} className="space-y-3.5 text-xs font-bold text-slate-700">
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-slate-400 block font-black">Full Name</label>
+                        <input
+                          type="text"
+                          required
+                          value={newEmpName}
+                          onChange={(e) => setNewEmpName(e.target.value)}
+                          placeholder="e.g. Dilip Soni"
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <label className="text-[9px] uppercase tracking-wider text-slate-400 block font-black">Username</label>
+                          <input
+                            type="text"
+                            required
+                            value={newEmpUser}
+                            onChange={(e) => setNewEmpUser(e.target.value)}
+                            placeholder="dilip_soni"
+                            className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[9px] uppercase tracking-wider text-slate-400 block font-black">Password</label>
+                          <input
+                            type="password"
+                            required
+                            value={newEmpPass}
+                            onChange={(e) => setNewEmpPass(e.target.value)}
+                            placeholder="e.g. 123"
+                            className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-slate-400 block font-black">Default Base Role</label>
+                        <select
+                          value={newEmpRole}
+                          onChange={(e) => setNewEmpRole(e.target.value as any)}
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer"
+                        >
+                          <option value="Super Admin">Super Admin</option>
+                          <option value="Office Executive">Office Executive</option>
+                          <option value="Production Team">Production Team</option>
+                          <option value="Field Team">Field Team</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] uppercase tracking-wider text-slate-400 block font-black">Department / Desk</label>
+                        <input
+                          type="text"
+                          required
+                          value={newEmpDept}
+                          onChange={(e) => setNewEmpDept(e.target.value)}
+                          placeholder="e.g. Printing Desk, Survey Desk"
+                          className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl"
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <PlusCircle className="w-4 h-4" /> Register Employee
+                      </button>
+                    </form>
+                  </div>
+
+                  {/* Right Column: Employees Directory (8 cols) */}
+                  <div className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-xs">
+                    <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                      <Users className="w-4 h-4 text-red-600" />
+                      Registered Employee Directory ({filteredMgmtEmployees.length})
+                    </h3>
+
+                    <div className="space-y-3">
+                      {filteredMgmtEmployees.map((emp) => (
+                        <div key={emp.id} className="border border-slate-200 rounded-2xl bg-slate-50 p-4 space-y-3 shadow-3xs">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 bg-slate-900 text-white rounded-xl flex items-center justify-center font-black">
+                                {emp.name[0]}
+                              </div>
+                              <div>
+                                <h4 className="text-xs font-black text-slate-850 flex items-center gap-2">
+                                  {emp.name}
+                                  <span className="text-[9px] bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded-lg font-bold">
+                                    {emp.role}
+                                  </span>
+                                </h4>
+                                <p className="text-[10px] text-slate-500 font-mono mt-0.5">
+                                  User: <span className="font-bold text-slate-700">{emp.username}</span> • Dept: {emp.department} • Status:{' '}
+                                  <span className={`font-black uppercase tracking-wider ${emp.status === 'Active' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {emp.status}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => handleToggleEmployeeStatus(emp.id)}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] uppercase font-black tracking-wider transition-all cursor-pointer border ${
+                                  emp.status === 'Active'
+                                    ? 'bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200'
+                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                                }`}
+                              >
+                                {emp.status === 'Active' ? 'Deactivate' : 'Activate'}
+                              </button>
+
+                              <button
+                                onClick={() => handleResetEmployeePassword(emp.id)}
+                                className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-[10px] uppercase font-black tracking-wider text-slate-700 rounded-xl cursor-pointer"
+                              >
+                                Reset Pass
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setSelectedMgmtEmployee(emp.id);
+                                  setMgmtTab('permissions');
+                                }}
+                                className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] uppercase font-black tracking-wider rounded-xl cursor-pointer"
+                              >
+                                Edit Permissions
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Login Hist block */}
+                          {emp.loginHistory.length > 0 ? (
+                            <div className="p-2.5 bg-white border border-slate-200 rounded-xl text-[9px] text-slate-500 font-mono flex justify-between items-center">
+                              <span>Last active login logged:</span>
+                              <span className="font-bold text-slate-700">
+                                {emp.loginHistory[0].timestamp} via {emp.loginHistory[0].device}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="p-2 bg-slate-100 rounded-xl text-[9px] text-slate-400 font-mono text-center">
+                              No recent active sessions logged in local cache history.
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              )}
+
+              {/* TAB CONTAINER 2: GRANULAR PERMISSIONS MATRIX GRID */}
+              {mgmtTab === 'permissions' && (
+                <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-xs">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-slate-100 pb-3">
+                    <div className="space-y-0.5">
+                      <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                        <ShieldCheck className="w-4 h-4 text-red-600" />
+                        Granular Employee Access Permissions Matrix
+                      </h3>
+                      <p className="text-[10px] text-slate-500 font-medium">Toggle individual checkboxes in real-time. Immediately saved and locked.</p>
+                    </div>
+
+                    {/* Selector of which employee to manage */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500">Configure For:</span>
+                      <select
+                        value={selectedMgmtEmployee}
+                        onChange={(e) => setSelectedMgmtEmployee(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-xs font-black cursor-pointer"
+                      >
+                        {employees.map(e => (
+                          <option key={e.id} value={e.id}>
+                            👤 {e.name} ({e.role})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {selectedMgmtEmpObj ? (
+                    <div className="space-y-6">
+                      <div className="bg-red-50 border border-red-100/70 p-4 rounded-2xl flex items-center gap-3">
+                        <Shield className="w-5 h-5 text-red-600 animate-pulse shrink-0" />
+                        <div className="text-xs font-bold text-red-950">
+                          Editing Permissions of: {selectedMgmtEmpObj.name} ({selectedMgmtEmpObj.role})
+                          <p className="text-[10px] text-slate-500 font-medium mt-0.5">
+                            Standard restrictions apply. Unchecking view options automatically collapses and hides corresponding links completely.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Main checklist Grid */}
+                      <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 font-bold text-xs text-slate-700">
+                        
+                        {/* MODULE VIEWS CHECKLIST */}
+                        <div className="border border-slate-150 p-4 rounded-2xl space-y-3 bg-slate-50">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                            🖥️ View Module Screens
+                          </span>
+
+                          <div className="space-y-2.5">
+                            {[
+                              { key: 'viewDashboard', label: 'Owner/Manager Dashboard' },
+                              { key: 'viewCRM', label: 'CRM / Customers' },
+                              { key: 'viewCalculators', label: 'Estimate Builder (Calculator)' },
+                              { key: 'viewInventory', label: 'Raw Materials Inventory' },
+                              { key: 'viewTickets', label: 'Support & Floor Tickets' },
+                              { key: 'viewBilling', label: 'Billing / Invoice Register' },
+                              { key: 'viewSurvey', label: 'Site Measurements & Survey' },
+                              { key: 'viewScheduler', label: 'Smart Calendar Scheduler' },
+                              { key: 'viewFollowups', label: 'Customer Follow-ups Panel' },
+                              { key: 'viewReports', label: 'Revenue Analytics & Reports' },
+                            ].map((item) => (
+                              <label key={item.key} className="flex items-center gap-2.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedMgmtEmpObj.permissions[item.key as keyof EmployeePermissions]}
+                                  onChange={() => handleTogglePermission(selectedMgmtEmpObj.id, item.key as any)}
+                                  className="w-4 h-4 text-red-600 rounded-md cursor-pointer"
+                                />
+                                <span className={selectedMgmtEmpObj.permissions[item.key as keyof EmployeePermissions] ? 'text-slate-900 font-extrabold' : 'text-slate-400 font-medium'}>
+                                  {item.label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* TRANSACTION ACTIONS CHECKLIST */}
+                        <div className="border border-slate-150 p-4 rounded-2xl space-y-3 bg-slate-50">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">
+                            ⚡ Operations & Granular Rights
+                          </span>
+
+                          <div className="space-y-2.5">
+                            {[
+                              { key: 'createQuotation', label: 'Draft Estimates & Quotes' },
+                              { key: 'deleteRecords', label: 'Delete System Ledger Records' },
+                              { key: 'viewPricing', label: 'View Cost & Profit Margins' },
+                              { key: 'changeSettings', label: 'Configure Global Rates & Settings' },
+                              { key: 'viewUserManagement', label: 'Manage Employees & Access Logs' },
+                              { key: 'viewAuditLog', label: 'Access Global Security Audit Logs' },
+                            ].map((item) => (
+                              <label key={item.key} className="flex items-center gap-2.5 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!selectedMgmtEmpObj.permissions[item.key as keyof EmployeePermissions]}
+                                  onChange={() => handleTogglePermission(selectedMgmtEmpObj.id, item.key as any)}
+                                  className="w-4 h-4 text-red-600 rounded-md cursor-pointer"
+                                />
+                                <span className={selectedMgmtEmpObj.permissions[item.key as keyof EmployeePermissions] ? 'text-slate-900 font-extrabold' : 'text-slate-400 font-medium'}>
+                                  {item.label}
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* ACTIVE EMPLOYEE DIRECT HISTORY LOG */}
+                        <div className="border border-slate-150 p-4 rounded-2xl space-y-3 bg-slate-50 h-[380px] overflow-y-auto">
+                          <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block flex items-center gap-1 font-mono">
+                            <Activity className="w-3.5 h-3.5 text-red-600" />
+                            Activity Log History
+                          </span>
+
+                          <div className="space-y-2 font-mono text-[9px]">
+                            {selectedMgmtEmpObj.activityLogs.map((log, lidx) => (
+                              <div key={lidx} className="bg-white border border-slate-250 p-2 rounded-xl space-y-1">
+                                <div className="flex justify-between font-bold text-slate-700">
+                                  <span>{log.action}</span>
+                                  <span>{log.timestamp.substring(11, 16)}</span>
+                                </div>
+                                <p className="text-slate-500 leading-normal">{log.details}</p>
+                              </div>
+                            ))}
+                            {selectedMgmtEmpObj.activityLogs.length === 0 && (
+                              <p className="text-center text-slate-400 py-6">No activity records registered for this employee profile.</p>
+                            )}
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-center text-xs text-slate-400 py-4">Please register or select an employee from directory.</p>
+                  )}
+                </div>
+              )}
+
+              {/* TAB CONTAINER 3: GLOBAL SYSTEM AUDIT LEDGER */}
+              {mgmtTab === 'audit_log' && (
+                <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-xs">
+                  <h3 className="text-xs font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                    <Terminal className="w-4 h-4 text-red-600 animate-pulse" />
+                    Global System Auditing Registers (Every single action logged)
+                  </h3>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b border-slate-200 font-black text-slate-500">
+                          <th className="py-2.5 font-mono">Timestamp</th>
+                          <th className="py-2.5">User Role Actor</th>
+                          <th className="py-2.5">Action Executed</th>
+                          <th className="py-2.5">Device Agent</th>
+                          <th className="py-2.5 font-mono">Before Value</th>
+                          <th className="py-2.5 font-mono">After Value</th>
+                        </tr>
+                      </thead>
+                      <tbody className="font-mono text-[10px]">
+                        {auditLogs.map((log) => (
+                          <tr key={log.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
+                            <td className="py-3 text-slate-500">{log.timestamp}</td>
+                            <td className="py-3 font-bold text-slate-800">{log.username}</td>
+                            <td className="py-3 font-semibold text-slate-900">{log.action}</td>
+                            <td className="py-3 text-slate-600">{log.device}</td>
+                            <td className="py-3 text-rose-600 truncate max-w-[140px]" title={log.beforeValue}>
+                              {log.beforeValue || '-'}
+                            </td>
+                            <td className="py-3 text-emerald-600 truncate max-w-[140px]" title={log.afterValue}>
+                              {log.afterValue || '-'}
+                            </td>
+                          </tr>
+                        ))}
+                        {auditLogs.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-xs text-slate-400 font-medium">
+                              System audit log database is completely empty. Initiate transactions above to trigger log hooks.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          )}
+
+              </motion.div>
+            </AnimatePresence>
+          )}
+
         </main>
+ 
+        {/* Footer System Credits */}
+        <footer className="bg-zinc-50 border-t border-zinc-200/40 text-zinc-400 py-5 px-6 text-center text-[10px] font-mono flex flex-col md:flex-row justify-between items-center gap-2 z-25">
+          <span>© 2026 Agrasen Flex Printers Operating System</span>
+          <span>Secure Active License: Ramesh Sharma • Delhi, India</span>
+        </footer>
       </div>
 
-      {/* Footer System Credits */}
-      <footer className="bg-white border-t border-slate-200 text-slate-500 py-5 px-6 text-center text-xs font-mono flex flex-col md:flex-row justify-between items-center gap-2">
-        <span>© 2026 Agrasen Flex Printers ERP Operating System. All Rights Reserved.</span>
-        <span>Registered to Owner Ramesh Sharma • Delhi, India</span>
-      </footer>
     </div>
   );
 }

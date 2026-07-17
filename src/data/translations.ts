@@ -59,6 +59,7 @@ export const translations = {
     invoices: 'Invoices',
     reports: 'Reports & Analytics',
     blueprints: 'System Blueprint & SRS',
+    uxRedesignProposal: 'UX Redesign Proposal 📱',
     billingTab: 'Billing & Invoices',
     siteSurvey: 'Site Survey & Installation',
 
@@ -165,6 +166,7 @@ export const translations = {
     invoices: 'इनवॉइस / बिल',
     reports: 'रिपोर्ट और विश्लेषण',
     blueprints: 'सॉफ्टवेयर ब्लूप्रिंट (SRS)',
+    uxRedesignProposal: 'यूएक्स रीडिजाइन प्रस्ताव 📱',
     billingTab: 'बिलिंग और इनवॉइस',
     siteSurvey: 'साइट सर्वे और फिटिंग',
 
