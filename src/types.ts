@@ -61,17 +61,82 @@ export interface Job {
   installationAddress?: string;
 }
 
+export interface TimelineEvent {
+  id: string;
+  type: string; // 'Created' | 'WhatsApp' | 'QuotationSent' | 'QuotationApproved' | 'Production' | 'Printing' | 'Installation' | 'Invoice' | 'Payment' | 'Feedback' | 'Call'
+  title: string;
+  description: string;
+  date: string;
+  byUser?: string;
+}
+
 export interface Customer {
   id: string;
   name: string;
+  companyName: string;
   phone: string;
-  gst: string;
-  address: string;
+  whatsapp?: string;
   email: string;
-  notes: string;
+  gst?: string;
+  address: string;
+  customerSince: string;
+  lastOrder?: string;
   outstandingBalance: number;
-  ordersCount: number;
-  outstandingInvoices: number;
+  recentQuotations?: string[];
+  recentInvoices?: string[];
+  recentPayments?: { date: string; amount: number; method: string }[];
+  uploadedFiles?: { name: string; url: string; uploadedAt: string }[];
+  notesList?: { id: string; text: string; date: string; author: string }[];
+  timeline: TimelineEvent[];
+}
+
+export interface EmployeePermissions {
+  // Screens
+  viewDashboard: boolean;
+  viewCRM: boolean;
+  viewCalculators: boolean;
+  viewInventory: boolean;
+  viewTickets: boolean;
+  viewBilling: boolean;
+  viewSurvey: boolean;
+  viewScheduler: boolean;
+  viewFollowups: boolean;
+  viewReports: boolean;
+  viewUserManagement: boolean;
+  viewAuditLog: boolean;
+  // Actions
+  createQuotation: boolean;
+  deleteRecords: boolean;
+  viewPricing: boolean;
+  changeSettings: boolean;
+}
+
+export interface Employee {
+  id: string;
+  name: string;
+  username: string;
+  passwordHash: string; // SHA-256 hashed on server, never plain text
+  role: 'Super Admin' | 'Office Executive' | 'Production Team' | 'Field Team';
+  department: string;
+  profilePhoto?: string;
+  status: 'Active' | 'Deactivated';
+  createdDate: string;
+  lastLogin?: string;
+  lastActive?: string;
+  softDeleted?: boolean;
+  permissions: EmployeePermissions;
+  loginHistory: { timestamp: string; device: string }[];
+  activityLogs: { timestamp: string; action: string; details: string }[];
+}
+
+export interface AuditLog {
+  id: string;
+  username: string;
+  action: string;
+  timestamp: string;
+  device: string;
+  beforeValue: string;
+  afterValue: string;
 }
 
 export interface StockHistory {

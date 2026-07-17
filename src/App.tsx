@@ -53,8 +53,14 @@ import {
   Invoice,
   CalculatorRates,
   JobStatus,
-  TicketStatus
+  TicketStatus,
+  Employee,
+  EmployeePermissions,
+  AuditLog,
+  TimelineEvent
 } from './types';
+
+import { api } from './services/api';
 
 import {
   INITIAL_RATES,
@@ -85,169 +91,6 @@ import OwnerDashboard from './components/OwnerDashboard';
 import SystemBlueprints from './components/SystemBlueprints';
 import SiteSurveyJobSystem from './components/SiteSurveyJobSystem';
 import UXRedesignPortal from './components/UXRedesignPortal';
-
-// --- NEW RBAC DATA TYPES ---
-export interface EmployeePermissions {
-  viewDashboard: boolean;
-  viewCRM: boolean;
-  viewCalculators: boolean;
-  viewInventory: boolean;
-  viewTickets: boolean;
-  viewBilling: boolean;
-  viewSurvey: boolean;
-  viewScheduler: boolean;
-  viewFollowups: boolean;
-  viewReports: boolean;
-  viewUserManagement: boolean;
-  viewAuditLog: boolean;
-  // Actions
-  createQuotation: boolean;
-  deleteRecords: boolean;
-  viewPricing: boolean;
-  changeSettings: boolean;
-}
-
-export interface Employee {
-  id: string;
-  name: string;
-  username: string;
-  passwordHash: string; // Plain for demo/mock simplicity
-  role: 'Super Admin' | 'Office Executive' | 'Production Team' | 'Field Team';
-  department: string;
-  status: 'Active' | 'Deactivated';
-  permissions: EmployeePermissions;
-  loginHistory: { timestamp: string; device: string }[];
-  activityLogs: { timestamp: string; action: string; details: string }[];
-}
-
-export interface AuditLog {
-  id: string;
-  username: string;
-  action: string;
-  timestamp: string;
-  device: string;
-  beforeValue: string;
-  afterValue: string;
-}
-
-const DEFAULT_EMPLOYEES: Employee[] = [
-  {
-    id: 'EMP-001',
-    name: 'Ramesh Sharma',
-    username: 'ramesh',
-    passwordHash: '123',
-    role: 'Super Admin',
-    department: 'Administration',
-    status: 'Active',
-    permissions: {
-      viewDashboard: true,
-      viewCRM: true,
-      viewCalculators: true,
-      viewInventory: true,
-      viewTickets: true,
-      viewBilling: true,
-      viewSurvey: true,
-      viewScheduler: true,
-      viewFollowups: true,
-      viewReports: true,
-      viewUserManagement: true,
-      viewAuditLog: true,
-      createQuotation: true,
-      deleteRecords: true,
-      viewPricing: true,
-      changeSettings: true
-    },
-    loginHistory: [],
-    activityLogs: []
-  },
-  {
-    id: 'EMP-002',
-    name: 'Sunita Gupta',
-    username: 'sunita',
-    passwordHash: '123',
-    role: 'Office Executive',
-    department: 'Sales & Front Office',
-    status: 'Active',
-    permissions: {
-      viewDashboard: true,
-      viewCRM: true,
-      viewCalculators: true,
-      viewInventory: true,
-      viewTickets: true,
-      viewBilling: true,
-      viewSurvey: true,
-      viewScheduler: true,
-      viewFollowups: true,
-      viewReports: false,
-      viewUserManagement: false,
-      viewAuditLog: false,
-      createQuotation: true,
-      deleteRecords: false,
-      viewPricing: true,
-      changeSettings: false
-    },
-    loginHistory: [],
-    activityLogs: []
-  },
-  {
-    id: 'EMP-003',
-    name: 'Dilip Kumar',
-    username: 'dilip',
-    passwordHash: '123',
-    role: 'Production Team',
-    department: 'Printing & Finishing Shop',
-    status: 'Active',
-    permissions: {
-      viewDashboard: true,
-      viewCRM: false,
-      viewCalculators: false,
-      viewInventory: true,
-      viewTickets: true,
-      viewBilling: false,
-      viewSurvey: false,
-      viewScheduler: false,
-      viewFollowups: false,
-      viewReports: false,
-      viewUserManagement: false,
-      viewAuditLog: false,
-      createQuotation: false,
-      deleteRecords: false,
-      viewPricing: false,
-      changeSettings: false
-    },
-    loginHistory: [],
-    activityLogs: []
-  },
-  {
-    id: 'EMP-004',
-    name: 'Raju Singh',
-    username: 'raju',
-    passwordHash: '123',
-    role: 'Field Team',
-    department: 'Logistics & Installation',
-    status: 'Active',
-    permissions: {
-      viewDashboard: true,
-      viewCRM: false,
-      viewCalculators: false,
-      viewInventory: false,
-      viewTickets: true,
-      viewBilling: false,
-      viewSurvey: true,
-      viewScheduler: true,
-      viewFollowups: false,
-      viewReports: false,
-      viewUserManagement: false,
-      viewAuditLog: false,
-      createQuotation: false,
-      deleteRecords: false,
-      viewPricing: false,
-      changeSettings: false
-    },
-    loginHistory: [],
-    activityLogs: []
-  }
-];
 
 export default function App() {
   // --- STATE STORES ---
@@ -301,46 +144,106 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [activeTab]);
 
+  // Client state synchronizer to full-stack Express backend
+  const syncStateToServer = async (
+    updatedJobs = jobs,
+    updatedMaterials = materials,
+    updatedTickets = tickets,
+    updatedDeliveries = deliveries,
+    updatedFollowUps = followUps,
+    updatedQuotations = quotations,
+    updatedInvoices = invoices,
+    updatedRates = rates
+  ) => {
+    try {
+      await api.syncClientState({
+        jobs: updatedJobs,
+        materials: updatedMaterials,
+        tickets: updatedTickets,
+        deliveries: updatedDeliveries,
+        followUps: updatedFollowUps,
+        quotations: updatedQuotations,
+        invoices: updatedInvoices,
+        rates: updatedRates
+      });
+    } catch (e) {
+      console.warn('Sync failed:', e);
+    }
+  };
+
   // Initial Data Seed & Sync Loader
   useEffect(() => {
-    // Core Models loading
-    const localJobs = localStorage.getItem('abms_jobs');
-    const localCust = localStorage.getItem('abms_customers');
-    const localMat = localStorage.getItem('abms_materials');
-    const localTickets = localStorage.getItem('abms_tickets');
-    const localDlv = localStorage.getItem('abms_deliveries');
-    const localFollows = localStorage.getItem('abms_followups');
-    const localQuotes = localStorage.getItem('abms_quotations');
-    const localInvs = localStorage.getItem('abms_invoices');
-    const localRates = localStorage.getItem('abms_rates');
+    const bootstrapSession = async () => {
+      try {
+        const data = await api.getSession();
+        
+        // Populate core business states from central backend
+        setJobs(data.jobs && data.jobs.length > 0 ? data.jobs : JSON.parse(localStorage.getItem('abms_jobs') || '[]') || INITIAL_JOBS);
+        setCustomers(data.customers && data.customers.length > 0 ? data.customers : JSON.parse(localStorage.getItem('abms_customers') || '[]') || INITIAL_CUSTOMERS);
+        setMaterials(data.materials && data.materials.length > 0 ? data.materials : JSON.parse(localStorage.getItem('abms_materials') || '[]') || INITIAL_MATERIALS);
+        setTickets(data.tickets && data.tickets.length > 0 ? data.tickets : JSON.parse(localStorage.getItem('abms_tickets') || '[]') || INITIAL_TICKETS);
+        setDeliveries(data.deliveries && data.deliveries.length > 0 ? data.deliveries : JSON.parse(localStorage.getItem('abms_deliveries') || '[]') || INITIAL_DELIVERIES);
+        setFollowUps(data.followUps && data.followUps.length > 0 ? data.followUps : JSON.parse(localStorage.getItem('abms_followups') || '[]') || INITIAL_FOLLOW_UPS);
+        setQuotations(data.quotations && data.quotations.length > 0 ? data.quotations : JSON.parse(localStorage.getItem('abms_quotations') || '[]') || INITIAL_QUOTATIONS);
+        setInvoices(data.invoices && data.invoices.length > 0 ? data.invoices : JSON.parse(localStorage.getItem('abms_invoices') || '[]') || INITIAL_INVOICES);
+        
+        if (data.rates) {
+          setRates(data.rates);
+        } else {
+          const savedRates = localStorage.getItem('abms_rates');
+          if (savedRates) setRates(JSON.parse(savedRates));
+        }
 
-    setJobs(localJobs ? JSON.parse(localJobs) : INITIAL_JOBS);
-    setCustomers(localCust ? JSON.parse(localCust) : INITIAL_CUSTOMERS);
-    setMaterials(localMat ? JSON.parse(localMat) : INITIAL_MATERIALS);
-    setTickets(localTickets ? JSON.parse(localTickets) : INITIAL_TICKETS);
-    setDeliveries(localDlv ? JSON.parse(localDlv) : INITIAL_DELIVERIES);
-    setFollowUps(localFollows ? JSON.parse(localFollows) : INITIAL_FOLLOW_UPS);
-    setQuotations(localQuotes ? JSON.parse(localQuotes) : INITIAL_QUOTATIONS);
-    setInvoices(localInvs ? JSON.parse(localInvs) : INITIAL_INVOICES);
-    if (localRates) setRates(JSON.parse(localRates));
+        // Active authenticated employee
+        setCurrentEmployee(data.employee);
+        
+        // Pull latest employee directory
+        const directory = await api.getEmployees();
+        setEmployees(directory);
+        
+        setAuditLogs(data.auditLogs || []);
 
-    // RBAC System loading
-    const localEmps = localStorage.getItem('abms_employees');
-    const localAudits = localStorage.getItem('abms_system_audit_logs');
-    const localSession = localStorage.getItem('abms_active_session_employee');
+        // Route to respective screen
+        if (data.employee.role === 'Super Admin') {
+          setActiveTab('owner_dashboard');
+        } else if (data.employee.role === 'Office Executive') {
+          setActiveTab('crm');
+        } else {
+          setActiveTab('staff_portal');
+        }
+      } catch (err) {
+        console.warn('Bootstrap: Unauthenticated or server offline. Defaulting to client gate.');
+        setJobs(JSON.parse(localStorage.getItem('abms_jobs') || '[]') || INITIAL_JOBS);
+        setCustomers(JSON.parse(localStorage.getItem('abms_customers') || '[]') || INITIAL_CUSTOMERS);
+        setMaterials(JSON.parse(localStorage.getItem('abms_materials') || '[]') || INITIAL_MATERIALS);
+        setTickets(JSON.parse(localStorage.getItem('abms_tickets') || '[]') || INITIAL_TICKETS);
+        setDeliveries(JSON.parse(localStorage.getItem('abms_deliveries') || '[]') || INITIAL_DELIVERIES);
+        setFollowUps(JSON.parse(localStorage.getItem('abms_followups') || '[]') || INITIAL_FOLLOW_UPS);
+        setQuotations(JSON.parse(localStorage.getItem('abms_quotations') || '[]') || INITIAL_QUOTATIONS);
+        setInvoices(JSON.parse(localStorage.getItem('abms_invoices') || '[]') || INITIAL_INVOICES);
+        
+        const savedRates = localStorage.getItem('abms_rates');
+        if (savedRates) setRates(JSON.parse(savedRates));
 
-    const seedEmps = localEmps ? JSON.parse(localEmps) : DEFAULT_EMPLOYEES;
-    setEmployees(seedEmps);
-    setAuditLogs(localAudits ? JSON.parse(localAudits) : []);
-    
-    if (localSession) {
-      setCurrentEmployee(JSON.parse(localSession));
-    }
+        api.getEmployees().then(setEmployees).catch(() => {});
+      }
+    };
+    bootstrapSession();
   }, []);
 
-  // Save changes helper
+  // Save changes helper (synced back to local storage and full-stack Express)
   const saveState = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
+    
+    // Sync update back to central backend Express layer
+    if (key === 'abms_jobs') syncStateToServer(data);
+    else if (key === 'abms_materials') syncStateToServer(undefined, data);
+    else if (key === 'abms_tickets') syncStateToServer(undefined, undefined, data);
+    else if (key === 'abms_deliveries') syncStateToServer(undefined, undefined, undefined, data);
+    else if (key === 'abms_followups') syncStateToServer(undefined, undefined, undefined, undefined, data);
+    else if (key === 'abms_quotations') syncStateToServer(undefined, undefined, undefined, undefined, undefined, data);
+    else if (key === 'abms_invoices') syncStateToServer(undefined, undefined, undefined, undefined, undefined, undefined, data);
+    else if (key === 'abms_rates') syncStateToServer(undefined, undefined, undefined, undefined, undefined, undefined, undefined, data);
   };
 
   // --- DETAILED AUDIT LOG GENERATOR ---
@@ -358,7 +261,7 @@ export default function App() {
 
     const updatedLogs = [newLog, ...auditLogs];
     setAuditLogs(updatedLogs);
-    saveState('abms_system_audit_logs', updatedLogs);
+    localStorage.setItem('abms_system_audit_logs', JSON.stringify(updatedLogs));
 
     // Sync back to employee individual activity log
     if (actor) {
@@ -372,7 +275,7 @@ export default function App() {
         return emp;
       });
       setEmployees(updatedEmployees);
-      saveState('abms_employees', updatedEmployees);
+      localStorage.setItem('abms_employees', JSON.stringify(updatedEmployees));
     }
   };
 
@@ -395,92 +298,98 @@ export default function App() {
   };
 
   // --- CORE LOGIN HANDLERS ---
-  const handleLogin = (e?: React.FormEvent) => {
+  const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setLoginError(null);
 
-    const user = employees.find(emp => emp.username.toLowerCase() === loginUsername.trim().toLowerCase());
-    if (!user) {
-      setLoginError('Authentication Failed: Username not registered.');
-      return;
+    try {
+      const { employee } = await api.login(loginUsername, loginPassword);
+      setCurrentEmployee(employee);
+      
+      // Load fully synced server datasets on successful login
+      const data = await api.getSession();
+      if (data.jobs && data.jobs.length > 0) setJobs(data.jobs);
+      if (data.customers && data.customers.length > 0) setCustomers(data.customers);
+      if (data.materials && data.materials.length > 0) setMaterials(data.materials);
+      if (data.tickets && data.tickets.length > 0) setTickets(data.tickets);
+      if (data.deliveries && data.deliveries.length > 0) setDeliveries(data.deliveries);
+      if (data.followUps && data.followUps.length > 0) setFollowUps(data.followUps);
+      if (data.quotations && data.quotations.length > 0) setQuotations(data.quotations);
+      if (data.invoices && data.invoices.length > 0) setInvoices(data.invoices);
+      if (data.rates) setRates(data.rates);
+      setAuditLogs(data.auditLogs || []);
+      
+      const directory = await api.getEmployees();
+      setEmployees(directory);
+
+      // Route based on role
+      if (employee.role === 'Super Admin') {
+        setActiveTab('owner_dashboard');
+      } else if (employee.role === 'Office Executive') {
+        setActiveTab('crm');
+      } else {
+        setActiveTab('staff_portal');
+      }
+
+      setLoginUsername('');
+      setLoginPassword('');
+      setLastActivityTime(Date.now());
+
+      // Log success
+      writeAuditLog('User Login Success', `Logged in as ${employee.name} from UI`, '', `Active: ${employee.name}`, employee);
+    } catch (err: any) {
+      setLoginError(err.message || 'Authentication Failed');
     }
-
-    if (user.status === 'Deactivated') {
-      setLoginError('Account Status: DEACTIVATED. Contact Ramesh Sharma (Super Admin) for reactivation.');
-      return;
-    }
-
-    if (user.passwordHash !== loginPassword) {
-      setLoginError('Incorrect password entered. Hint: default is 123.');
-      return;
-    }
-
-    // Success Authentication
-    const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const device = navigator.userAgent.includes('Android') ? 'Android Mobile Device' : 'Desktop Admin Terminal';
-    
-    const updatedUser = {
-      ...user,
-      loginHistory: [{ timestamp, device }, ...user.loginHistory]
-    };
-
-    const updatedEmployees = employees.map(emp => emp.id === user.id ? updatedUser : emp);
-    setEmployees(updatedEmployees);
-    saveState('abms_employees', updatedEmployees);
-
-    setCurrentEmployee(updatedUser);
-    saveState('abms_active_session_employee', updatedUser);
-    
-    // Set appropriate initial tab
-    if (user.role === 'Super Admin') setActiveTab('owner_dashboard');
-    else if (user.role === 'Office Executive') setActiveTab('crm');
-    else if (user.role === 'Production Team') setActiveTab('staff_portal');
-    else if (user.role === 'Field Team') setActiveTab('staff_portal');
-
-    setLoginUsername('');
-    setLoginPassword('');
-    setLastActivityTime(Date.now());
-
-    // Record system logs
-    writeAuditLog('User Login Success', `Logged in via ${device}`, '', `Active: ${user.name}`, updatedUser);
   };
 
-  const handleLogout = (reason = 'Manual Logout') => {
+  const handleLogout = async (reason = 'Manual Logout') => {
     if (currentEmployee) {
       writeAuditLog('User Logout', reason, `Active: ${currentEmployee.name}`, '');
     }
+    await api.logout();
     setCurrentEmployee(null);
-    localStorage.removeItem('abms_active_session_employee');
     setActiveTab('ux_redesign_portal');
   };
 
-  const handleQuickDemoLogin = (username: string) => {
-    const user = employees.find(emp => emp.username === username);
-    if (user) {
-      setLoginUsername(user.username);
-      setLoginPassword(user.passwordHash);
-      setTimeout(() => {
-        // Direct execution
-        const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
-        const device = navigator.userAgent.includes('Android') ? 'Android Mobile Device' : 'Desktop Admin Terminal';
-        const updatedUser = {
-          ...user,
-          loginHistory: [{ timestamp, device }, ...user.loginHistory]
-        };
-        const updatedEmployees = employees.map(emp => emp.id === user.id ? updatedUser : emp);
-        setEmployees(updatedEmployees);
-        saveState('abms_employees', updatedEmployees);
-        setCurrentEmployee(updatedUser);
-        saveState('abms_active_session_employee', updatedUser);
-        
-        if (user.role === 'Super Admin') setActiveTab('owner_dashboard');
-        else if (user.role === 'Office Executive') setActiveTab('crm');
-        else if (user.role === 'Production Team') setActiveTab('staff_portal');
-        else if (user.role === 'Field Team') setActiveTab('staff_portal');
-        
-        setLastActivityTime(Date.now());
-        writeAuditLog('User Demo Login Success', `Logged in using Quick-Profile via ${device}`, '', `Active: ${user.name}`, updatedUser);
-      }, 100);
+  const handleQuickDemoLogin = async (username: string) => {
+    setLoginError(null);
+    try {
+      // Clear values first
+      setLoginUsername(username);
+      setLoginPassword('123'); // fallback default
+      
+      const { employee } = await api.login(username, '123');
+      setCurrentEmployee(employee);
+      
+      const data = await api.getSession();
+      if (data.jobs && data.jobs.length > 0) setJobs(data.jobs);
+      if (data.customers && data.customers.length > 0) setCustomers(data.customers);
+      if (data.materials && data.materials.length > 0) setMaterials(data.materials);
+      if (data.tickets && data.tickets.length > 0) setTickets(data.tickets);
+      if (data.deliveries && data.deliveries.length > 0) setDeliveries(data.deliveries);
+      if (data.followUps && data.followUps.length > 0) setFollowUps(data.followUps);
+      if (data.quotations && data.quotations.length > 0) setQuotations(data.quotations);
+      if (data.invoices && data.invoices.length > 0) setInvoices(data.invoices);
+      if (data.rates) setRates(data.rates);
+      setAuditLogs(data.auditLogs || []);
+      
+      const directory = await api.getEmployees();
+      setEmployees(directory);
+
+      if (employee.role === 'Super Admin') {
+        setActiveTab('owner_dashboard');
+      } else if (employee.role === 'Office Executive') {
+        setActiveTab('crm');
+      } else {
+        setActiveTab('staff_portal');
+      }
+
+      setLoginUsername('');
+      setLoginPassword('');
+      setLastActivityTime(Date.now());
+      writeAuditLog('User Quick Demo Login', `Logged in via Quick Profile: ${employee.name}`, '', `Active: ${employee.name}`, employee);
+    } catch (err: any) {
+      setLoginError(err.message || 'Quick login failed');
     }
   };
 
@@ -567,12 +476,37 @@ export default function App() {
     writeAuditLog('Added New Job', `Created Job ${newJob.id}: "${job.title}" for ₹${job.cost}`, '', job.title);
   };
 
-  const handleAddCustomer = (c: Customer) => {
-    const updated = [c, ...customers];
-    setCustomers(updated);
-    saveState('abms_customers', updated);
+  const handleAddCustomer = async (c: Customer) => {
+    try {
+      const created = await api.createCustomer({
+        name: c.name,
+        companyName: c.companyName,
+        phone: c.phone,
+        whatsapp: c.whatsapp,
+        email: c.email,
+        gst: c.gst,
+        address: c.address,
+        notes: c.notesList?.[0]?.text || ''
+      });
+      const freshCustomers = await api.getCustomers();
+      setCustomers(freshCustomers);
+      localStorage.setItem('abms_customers', JSON.stringify(freshCustomers));
+      writeAuditLog('Added New Customer', `Created CRM record for "${created.name}"`, '', created.name);
+    } catch (err: any) {
+      alert(err.message || 'Failed to register customer profile');
+    }
+  };
 
-    writeAuditLog('Added New Customer', `Created CRM record for "${c.name}"`, '', c.name);
+  const handleUpdateCustomer = async (id: string, updatedFields: Partial<Customer>) => {
+    try {
+      await api.updateCustomer(id, updatedFields);
+      const freshCustomers = await api.getCustomers();
+      setCustomers(freshCustomers);
+      localStorage.setItem('abms_customers', JSON.stringify(freshCustomers));
+      writeAuditLog('Updated Customer Profile', `Modified attributes for Customer ${id}`, '', JSON.stringify(updatedFields));
+    } catch (err: any) {
+      alert(err.message || 'Failed to update customer');
+    }
   };
 
   const handleUpdateStock = (materialId: string, type: 'IN' | 'OUT', qty: number, reason: string) => {
@@ -727,7 +661,7 @@ export default function App() {
   };
 
   // --- ADMIN PERMISSION MUTATORS ---
-  const handleCreateEmployee = (e: React.FormEvent) => {
+  const handleCreateEmployee = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmpName.trim() || !newEmpUser.trim() || !newEmpPass.trim() || !newEmpDept.trim()) {
       alert('All employee parameters must be filled');
@@ -759,34 +693,31 @@ export default function App() {
       changeSettings: newEmpRole === 'Super Admin'
     };
 
-    const newEmp: Employee = {
-      id: `EMP-${Date.now().toString().substring(9)}`,
-      name: newEmpName.trim(),
-      username: newEmpUser.trim().toLowerCase(),
-      passwordHash: newEmpPass,
-      role: newEmpRole,
-      department: newEmpDept.trim(),
-      status: 'Active',
-      permissions: defaultPerms,
-      loginHistory: [],
-      activityLogs: []
-    };
+    try {
+      const created = await api.createEmployee({
+        name: newEmpName.trim(),
+        username: newEmpUser.trim().toLowerCase(),
+        password: newEmpPass,
+        role: newEmpRole,
+        department: newEmpDept.trim(),
+        permissions: defaultPerms
+      });
 
-    const updated = [...employees, newEmp];
-    setEmployees(updated);
-    saveState('abms_employees', updated);
+      setEmployees([...employees, created]);
+      writeAuditLog('Registered New Employee Profile', `Added ${created.name} as ${created.role} inside ${created.department}`, '', created.name);
 
-    // Reset fields
-    setNewEmpName('');
-    setNewEmpUser('');
-    setNewEmpPass('');
-    setNewEmpDept('');
-
-    writeAuditLog('Registered New Employee Profile', `Added ${newEmp.name} as ${newEmp.role} inside ${newEmp.department}`, '', newEmp.name);
-    alert(`🎉 Successfully registered: ${newEmp.name} (Role: ${newEmp.role})`);
+      // Reset fields
+      setNewEmpName('');
+      setNewEmpUser('');
+      setNewEmpPass('');
+      setNewEmpDept('');
+      alert(`🎉 Successfully registered: ${created.name} (Role: ${created.role})`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to register employee');
+    }
   };
 
-  const handleToggleEmployeeStatus = (empId: string) => {
+  const handleToggleEmployeeStatus = async (empId: string) => {
     const target = employees.find(e => e.id === empId);
     if (!target) return;
     if (target.id === 'EMP-001') {
@@ -794,84 +725,72 @@ export default function App() {
       return;
     }
 
-    const nextStatus = target.status === 'Active' ? 'Deactivated' : 'Active';
-    const updated = employees.map(emp => {
-      if (emp.id === empId) {
-        return { ...emp, status: nextStatus as any };
+    try {
+      const updated = await api.toggleEmployeeStatus(empId);
+      setEmployees(employees.map(emp => emp.id === empId ? updated : emp));
+      writeAuditLog('Modified Employee Account Status', `Moved ${updated.name} to ${updated.status}`, target.status, updated.status);
+
+      // If deactivating current logged in employee, force logout
+      if (currentEmployee && currentEmployee.id === empId && updated.status === 'Deactivated') {
+        handleLogout('Session Terminated: Deactivated by Administration');
       }
-      return emp;
-    });
-
-    setEmployees(updated);
-    saveState('abms_employees', updated);
-
-    // If deactivating current logged in employee, force logout
-    if (currentEmployee && currentEmployee.id === empId && nextStatus === 'Deactivated') {
-      handleLogout('Session Terminated: Deactivated by Administration');
+    } catch (err: any) {
+      alert(err.message || 'Failed to toggle status');
     }
-
-    writeAuditLog('Modified Employee Account Status', `Moved ${target.name} to ${nextStatus}`, target.status, nextStatus);
   };
 
-  const handleResetEmployeePassword = (empId: string) => {
+  const handleResetEmployeePassword = async (empId: string) => {
     const target = employees.find(e => e.id === empId);
     if (!target) return;
     const nextPass = prompt(`Enter new password for ${target.name}:`, '123');
     if (!nextPass) return;
 
-    const updated = employees.map(emp => {
-      if (emp.id === empId) {
-        return { ...emp, passwordHash: nextPass };
-      }
-      return emp;
-    });
-
-    setEmployees(updated);
-    saveState('abms_employees', updated);
-    writeAuditLog('Reset Employee Password', `Modified credential hashes for ${target.name}`, '', 'UPDATED');
-    alert(`Password reset successful for ${target.name}`);
+    try {
+      await api.resetPassword(empId, nextPass);
+      // Refresh directory list
+      const freshEmps = await api.getEmployees();
+      setEmployees(freshEmps);
+      writeAuditLog('Reset Employee Password', `Modified credential hashes for ${target.name}`, '', 'UPDATED');
+      alert(`Password reset successful for ${target.name}`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to reset password');
+    }
   };
 
-  const handleTogglePermission = (empId: string, permissionKey: keyof EmployeePermissions) => {
+  const handleTogglePermission = async (empId: string, permissionKey: keyof EmployeePermissions) => {
     if (empId === 'EMP-001') {
       alert('Root Super Admin permissions cannot be modified.');
       return;
     }
 
-    const updated = employees.map(emp => {
-      if (emp.id === empId) {
-        const nextVal = !emp.permissions[permissionKey];
-        const updatedPerms = {
-          ...emp.permissions,
-          [permissionKey]: nextVal
-        };
-        return {
-          ...emp,
-          permissions: updatedPerms
-        };
-      }
-      return emp;
-    });
+    const target = employees.find(e => e.id === empId);
+    if (!target) return;
 
-    setEmployees(updated);
-    saveState('abms_employees', updated);
+    const nextVal = !target.permissions[permissionKey];
+    const updatedPerms = {
+      ...target.permissions,
+      [permissionKey]: nextVal
+    };
 
-    // If modifying currently logged in user, immediately update active session state
-    if (currentEmployee && currentEmployee.id === empId) {
-      const targetUser = updated.find(u => u.id === empId);
-      if (targetUser) {
-        setCurrentEmployee(targetUser);
-        saveState('abms_active_session_employee', targetUser);
+    try {
+      const updated = await api.updateEmployee(empId, { permissions: updatedPerms });
+      const updatedDirectory = employees.map(emp => emp.id === empId ? updated : emp);
+      setEmployees(updatedDirectory);
+
+      // If modifying currently logged in user, immediately update active session state
+      if (currentEmployee && currentEmployee.id === empId) {
+        setCurrentEmployee(updated);
       }
+
+      writeAuditLog(
+        'Updated Role Permissions Matrix', 
+        `Toggled "${permissionKey}" for ${updated.name}`, 
+        'Toggled', 
+        'Commit'
+      );
+    } catch (err: any) {
+      alert(err.message || 'Failed to update permissions');
     }
-
-    const targetEmp = employees.find(e => e.id === empId);
-    writeAuditLog(
-      'Updated Role Permissions Matrix', 
-      `Toggled "${permissionKey}" for ${targetEmp ? targetEmp.name : 'Employee'}`, 
-      'Toggled', 
-      'Commit'
-    );
   };
 
   // Helper dictionary lookup
@@ -903,128 +822,68 @@ export default function App() {
 
   // --- RENDER FLOWS ---
 
-  // FLOW 1: AUTHENTICATION LOCKOUT SCREEN (Login Page)
+  // FLOW 1: AUTHENTICATION GATE (Extremely Minimal, Modern, Clean & Premium)
   if (!currentEmployee) {
     return (
-      <div className="min-h-screen bg-zinc-50 text-zinc-900 flex flex-col justify-between antialiased font-sans" id="rbac-auth-gate">
-
-        {/* Simple Top Header Bar */}
-        <header className="px-6 py-4 flex items-center justify-between border-b border-zinc-200/60 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-zinc-100 rounded-xl flex items-center justify-center">
-              <Briefcase className="w-5 h-5 text-zinc-700" />
+      <div className="min-h-screen bg-white text-zinc-900 flex items-center justify-center p-6 antialiased font-sans" id="rbac-auth-gate">
+        <div className="w-full max-w-sm space-y-8">
+          
+          {/* Company Logo Emblem */}
+          <div className="space-y-2 text-center">
+            <div className="inline-flex w-12 h-12 rounded-xl bg-zinc-950 items-center justify-center text-white mb-2 shadow-sm">
+              <span className="text-xl font-black font-mono tracking-tighter">A</span>
             </div>
-            <div>
-              <h1 className="text-sm font-semibold tracking-tight text-zinc-900">
-                AGRASEN BUSINESS OPERATING SYSTEM
-              </h1>
-              <p className="text-[10px] text-zinc-450 font-mono">Agrasen Flex Printers • Gateway Active</p>
-            </div>
-          </div>
-
-          {/* Lang Selector on login gate */}
-          <div className="bg-zinc-100 p-0.5 rounded-xl border border-zinc-200 flex">
-            <button
-              onClick={() => setLang('EN')}
-              className={`px-3 py-1 rounded-lg font-mono font-medium text-[10px] transition-all cursor-pointer ${lang === 'EN' ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200/50' : 'text-zinc-500 hover:text-zinc-900'}`}
-            >
-              EN
-            </button>
-            <button
-              onClick={() => setLang('HI')}
-              className={`px-3 py-1 rounded-lg font-mono font-medium text-[10px] transition-all cursor-pointer ${lang === 'HI' ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200/50' : 'text-zinc-500 hover:text-zinc-900'}`}
-            >
-              हिन्दी
-            </button>
-          </div>
-        </header>
-
-        {/* Central Auth Login Card */}
-        <main className="flex-1 flex items-center justify-center p-6">
-          <div className="w-full max-w-md bg-white border border-zinc-200/80 rounded-2xl p-6 md:p-8 space-y-6 shadow-xs">
-            <div className="text-center space-y-1.5">
-              <h2 className="text-lg font-semibold text-zinc-900 tracking-tight">
-                Employee Authentication
-              </h2>
-              <p className="text-xs text-zinc-400">
-                Sign in with your assigned individual employee credentials. Shared logins are audited and logged.
-              </p>
-            </div>
-
-            {/* Error notifications */}
-            {loginError && (
-              <div className="bg-red-50 border border-red-200 p-3 rounded-xl text-xs text-red-650 font-medium flex items-center gap-2 animate-fadeIn">
-                <ShieldAlert className="w-4 h-4 text-red-500 shrink-0" />
-                <span>{loginError}</span>
-              </div>
-            )}
-
-            {/* Credential Inputs Form */}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Username</label>
-                <input
-                  type="text"
-                  required
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value)}
-                  placeholder="Enter employee username"
-                  className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-medium text-zinc-900 focus:bg-white focus:border-zinc-500 outline-none transition-all"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[10px] font-medium uppercase tracking-wider text-zinc-400">Password</label>
-                <input
-                  type="password"
-                  required
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full h-10 px-3 bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-mono font-medium text-zinc-900 focus:bg-white focus:border-zinc-500 outline-none transition-all"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full h-10 bg-zinc-900 hover:bg-zinc-800 text-white text-xs uppercase tracking-wider font-semibold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
-              >
-                <Unlock className="w-4 h-4" /> Unlock Workspace
-              </button>
-            </form>
-
-            {/* Quick Demo-Profile Sign-Ins Panel */}
-            <div className="border-t border-zinc-100 pt-5 space-y-2.5">
-              <span className="block text-[10px] font-medium uppercase tracking-wider text-zinc-400 text-center">
-                Interactive Testing Sandbox Profiles:
-              </span>
-              
-              <div className="grid grid-cols-2 gap-2">
-                {DEFAULT_EMPLOYEES.map((emp) => (
-                  <button
-                    key={emp.username}
-                    onClick={() => handleQuickDemoLogin(emp.username)}
-                    className="p-3 text-left bg-zinc-50 hover:bg-zinc-100/60 border border-zinc-200/80 rounded-xl cursor-pointer transition-all"
-                  >
-                    <span className="block text-xs font-semibold text-zinc-900">{emp.name}</span>
-                    <span className="block text-[9px] text-zinc-500 font-medium uppercase tracking-wider mt-0.5">{emp.role}</span>
-                    <span className="block text-[8px] text-zinc-450 font-mono mt-1">user: {emp.username} • pass: 123</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Security disclaimer */}
-            <p className="text-[8px] font-mono text-zinc-450 text-center uppercase tracking-wide">
-              WARNING: ALL WORKSPACE LOGINS ARE ENCRYPTED AND AUDITED
+            <h2 className="text-sm font-bold tracking-widest text-zinc-900 uppercase">
+              AGRASEN FLEX PRINTERS
+            </h2>
+            <p className="text-xs text-zinc-400 font-medium">
+              Enterprise Operating System
             </p>
           </div>
-        </main>
 
-        {/* Footer credits */}
-        <footer className="py-4 border-t border-zinc-200/60 text-center text-[10px] font-mono text-zinc-450 bg-white">
-          <span>Registered License: Ramesh Sharma (Super Admin) • Agrasen Flex Printers Delhi, India</span>
-        </footer>
+          {/* Error notifications */}
+          {loginError && (
+            <div className="bg-zinc-50 border border-zinc-200/80 p-3 rounded-xl text-xs text-zinc-700 font-medium flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-zinc-650 shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          {/* Credential Inputs Form */}
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Username</label>
+              <input
+                type="text"
+                required
+                value={loginUsername}
+                onChange={(e) => setLoginUsername(e.target.value)}
+                placeholder="Enter username"
+                className="w-full h-11 px-3 bg-zinc-50 border border-zinc-200/60 rounded-xl text-xs font-medium text-zinc-900 focus:bg-white focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 outline-hidden transition-all"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">Password</label>
+              <input
+                type="password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+                placeholder="Enter password"
+                className="w-full h-11 px-3 bg-zinc-50 border border-zinc-200/60 rounded-xl text-xs font-medium text-zinc-900 focus:bg-white focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 outline-hidden transition-all"
+              />
+            </div>
+
+            <button
+              type="submit"
+              className="w-full h-11 bg-zinc-900 hover:bg-zinc-800 text-white text-xs uppercase tracking-widest font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
+            >
+              Unlock Workspace
+            </button>
+          </form>
+
+        </div>
       </div>
     );
   }
@@ -1421,7 +1280,13 @@ export default function App() {
 
           {/* CRM Module */}
           {activeTab === 'crm' && currentEmployee.permissions.viewCRM && (
-            <CRMPanel customers={customers} onAddCustomer={handleAddCustomer} lang={lang} />
+            <CRMPanel
+              customers={customers}
+              onAddCustomer={handleAddCustomer}
+              onUpdateCustomer={handleUpdateCustomer}
+              lang={lang}
+              currentUser={currentEmployee}
+            />
           )}
 
           {/* Estimate Builder / Calculator Module */}

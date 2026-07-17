@@ -463,14 +463,31 @@ export default function EstimateBuilder({
       const newCust: Customer = {
         id: `CUST-NEW-${Date.now()}`,
         name: newCustName.trim(),
+        companyName: 'N/A',
         phone: newCustPhone.trim(),
-        email: '',
-        address: '',
-        gst: '',
-        notes: 'Registered inline from Redesigned Estimate Builder workspace',
+        whatsapp: newCustPhone.trim(),
+        email: 'N/A',
+        address: 'N/A',
+        gst: 'N/A',
+        customerSince: new Date().toISOString().split('T')[0],
         outstandingBalance: 0,
-        ordersCount: 0,
-        outstandingInvoices: 0
+        notesList: [
+          {
+            id: `N-${Date.now()}`,
+            text: 'Registered inline from Redesigned Estimate Builder workspace',
+            date: new Date().toISOString().replace('T', ' ').substring(0, 19),
+            author: 'System'
+          }
+        ],
+        timeline: [
+          {
+            id: `TL-${Date.now()}`,
+            type: 'Created',
+            title: 'Customer Account Created',
+            description: 'Registered inline from Redesigned Estimate Builder workspace.',
+            date: new Date().toISOString().replace('T', ' ').substring(0, 19)
+          }
+        ]
       };
       
       // We push it locally if available

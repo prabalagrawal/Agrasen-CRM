@@ -44,51 +44,101 @@ export const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'CUST-001',
     name: 'Sharma Sweets & Caterers',
+    companyName: 'Sharma Sweets & Caterers',
     phone: '9876543210',
+    whatsapp: '9876543210',
+    email: 'sharmasweets@gmail.com',
     gst: '07AAAAA1111A1Z1',
     address: 'Shop No. 12, Main Market, Sector 15, Rohini, Delhi',
-    email: 'sharmasweets@gmail.com',
-    notes: '20-year loyal customer. Needs high-quality finishing.',
+    customerSince: '2025-01-10',
+    lastOrder: 'JOB-001',
     outstandingBalance: 12500,
-    ordersCount: 45,
-    outstandingInvoices: 1,
+    recentQuotations: ['QT-001'],
+    recentInvoices: ['INV-1001'],
+    recentPayments: [
+      { date: '2026-07-14 11:30:00', amount: 26086, method: 'UPI GPay' }
+    ],
+    uploadedFiles: [
+      { name: 'sharma_sweets_dimensions.jpg', url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=400&q=80', uploadedAt: '2026-07-15 10:05:00' }
+    ],
+    notesList: [
+      { id: 'N-1', text: '20-year loyal customer. Needs high-quality finishing.', date: '2026-07-15 11:30:00', author: 'Ramesh Sharma' }
+    ],
+    timeline: [
+      { id: 'TL-1', type: 'Created', title: 'Customer Account Created', description: 'Profile registered in Agrasen OS CRM.', date: '2026-07-15 09:00:00', byUser: 'Sunita Gupta' }
+    ]
   },
   {
     id: 'CUST-002',
-    name: 'Gupta Medical Hall',
+    name: 'Amit Gupta',
+    companyName: 'Gupta Medical Hall',
     phone: '9811223344',
+    whatsapp: '9811223344',
+    email: 'guptamedical@yahoo.com',
     gst: '07BBBBB2222B2Z2',
     address: 'Pocket G-3, Sector 3, Dwarka, Delhi',
-    email: 'guptamedical@yahoo.com',
-    notes: 'Requires ACP signage and glow sign boards regularly.',
+    customerSince: '2026-02-10',
+    lastOrder: 'JOB-002',
     outstandingBalance: 0,
-    ordersCount: 18,
-    outstandingInvoices: 0,
+    recentQuotations: ['QT-002'],
+    recentInvoices: ['INV-1002'],
+    recentPayments: [
+      { date: '2026-07-16 09:20:00', amount: 1580, method: 'Cash' }
+    ],
+    uploadedFiles: [],
+    notesList: [
+      { id: 'N-2', text: 'Requires ACP signage and glow sign boards regularly.', date: '2026-07-16 09:30:00', author: 'Sunita Gupta' }
+    ],
+    timeline: [
+      { id: 'TL-B1', type: 'Created', title: 'Customer Account Created', description: 'Registered customer profile.', date: '2026-07-16 09:00:00', byUser: 'Sunita Gupta' }
+    ]
   },
   {
     id: 'CUST-003',
-    name: 'Mittal Saree Emporium',
+    name: 'Anil Mittal',
+    companyName: 'Mittal Saree Emporium',
     phone: '9988776655',
+    whatsapp: '9988776655',
+    email: 'mittalsarees@outlook.com',
     gst: '07CCCCC3333C3Z3',
     address: '45, Chandni Chowk, Delhi',
-    email: 'mittalsarees@outlook.com',
-    notes: 'Very strict on color matching. Often requests sample prints.',
+    customerSince: '2025-06-15',
+    lastOrder: 'JOB-003',
     outstandingBalance: 32000,
-    ordersCount: 32,
-    outstandingInvoices: 2,
+    recentQuotations: ['QT-003'],
+    recentInvoices: ['INV-1003'],
+    recentPayments: [],
+    uploadedFiles: [],
+    notesList: [
+      { id: 'N-3', text: 'Very strict on color matching. Often requests sample prints.', date: '2026-07-16 10:00:00', author: 'Sunita Gupta' }
+    ],
+    timeline: [
+      { id: 'TL-C1', type: 'Created', title: 'Customer Account Created', description: 'Registered customer profile.', date: '2026-07-16 10:00:00', byUser: 'Sunita Gupta' }
+    ]
   },
   {
     id: 'CUST-004',
     name: 'Apex Academy',
+    companyName: 'Apex Academy',
     phone: '9311223344',
+    whatsapp: '9311223344',
+    email: 'info@apexacademy.edu.in',
     gst: '07DDDDD4444D4Z4',
     address: 'B-12, GT Karnal Road, Industrial Area, Delhi',
-    email: 'info@apexacademy.edu.in',
-    notes: 'Educational institution. Requests flexible flex banners and brochures.',
+    customerSince: '2026-03-01',
+    lastOrder: 'JOB-004',
     outstandingBalance: 4500,
-    ordersCount: 12,
-    outstandingInvoices: 1,
-  },
+    recentQuotations: ['QT-004'],
+    recentInvoices: ['INV-1004'],
+    recentPayments: [],
+    uploadedFiles: [],
+    notesList: [
+      { id: 'N-4', text: 'Educational institution. Requests flexible flex banners and brochures.', date: '2026-07-16 10:15:00', author: 'Sunita Gupta' }
+    ],
+    timeline: [
+      { id: 'TL-D1', type: 'Created', title: 'Customer Account Created', description: 'Registered customer profile.', date: '2026-07-16 10:15:00', byUser: 'Sunita Gupta' }
+    ]
+  }
 ];
 
 export const INITIAL_JOBS: Job[] = [
