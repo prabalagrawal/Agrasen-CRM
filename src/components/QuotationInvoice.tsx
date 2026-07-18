@@ -4,8 +4,104 @@
  */
 
 import React, { useState } from 'react';
-import { FileSpreadsheet, Plus, Trash2, Printer, CheckCircle, FileText, Download } from 'lucide-react';
+import { FileSpreadsheet, Plus, Trash2, Printer, CheckCircle, FileText, Download, Share2, Mail } from 'lucide-react';
 import { Quotation, Invoice, Customer, QuoteItem } from '../types';
+import { jsPDF } from 'jspdf';
+import { api } from '../services/api';
+
+// Indian Currency Format helper for converting numbers to words
+function numberToWords(num: number): string {
+  const a = ['', 'One ', 'Two ', 'Three ', 'Four ', 'Five ', 'Six ', 'Seven ', 'Eight ', 'Nine ', 'Ten ', 'Eleven ', 'Twelve ', 'Thirteen ', 'Fourteen ', 'Fifteen ', 'Sixteen ', 'Seventeen ', 'Eighteen ', 'Nineteen '];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+  if ((num = Math.round(num)) === 0) return 'Zero';
+  
+  let str = '';
+  const crores = Math.floor(num / 10000000);
+  num %= 10000000;
+  const lakhs = Math.floor(num / 100000);
+  num %= 100000;
+  const thousands = Math.floor(num / 1000);
+  num %= 1000;
+  const hundreds = Math.floor(num / 100);
+  num %= 100;
+  
+  const getTensOnes = (n: number) => {
+    if (n < 20) return a[n];
+    return b[Math.floor(n / 10)] + (n % 10 !== 0 ? '-' + a[n % 10].trim() : '') + ' ';
+  };
+
+  if (crores > 0) str += getTensOnes(crores) + 'Crore ';
+  if (lakhs > 0) str += getTensOnes(lakhs) + 'Lakh ';
+  if (thousands > 0) str += getTensOnes(thousands) + 'Thousand ';
+  if (hundreds > 0) str += getTensOnes(hundreds) + 'Hundred ';
+  if (num > 0) {
+    if (str !== '') str += 'and ';
+    str += getTensOnes(num);
+  }
+  return str.trim() + ' Rupees Only';
+}
+
+// Draw custom high-res vector Indian Rupee symbol (₹)
+function drawRupeeSymbol(doc: any, x: number, y: number, fontSize: number = 9) {
+  const h = fontSize * 0.65;
+  const w = fontSize * 0.42;
+  const thickness = fontSize * 0.08;
+  doc.setLineWidth(thickness);
+  
+  // Neutral dark slate-800 line draw color
+  doc.setDrawColor(30, 41, 59);
+  
+  // Top bar
+  doc.line(x, y - h, x + w, y - h);
+  // Middle bar
+  doc.line(x, y - h * 0.62, x + w * 0.8, y - h * 0.62);
+  // Left vertical spine
+  doc.line(x + w * 0.12, y - h, x + w * 0.12, y - h * 0.28);
+  // Loop curve segments
+  doc.line(x + w * 0.12, y - h, x + w * 0.65, y - h);
+  doc.line(x + w * 0.65, y - h, x + w * 0.65, y - h * 0.28);
+  doc.line(x + w * 0.65, y - h * 0.28, x + w * 0.12, y - h * 0.28);
+  // Slanted tail
+  doc.line(x + w * 0.25, y - h * 0.28, x + w * 0.72, y);
+}
+
+// Wrapper to parse text and inject Rupee vector rendering at correct positions
+function drawTextWithRupee(doc: any, text: string, x: number, y: number, align: 'left' | 'right' = 'left') {
+  const hasRupee = text.includes('₹');
+  if (!hasRupee) {
+    if (align === 'right') {
+      doc.text(text, x, y, { align: 'right' });
+    } else {
+      doc.text(text, x, y);
+    }
+    return;
+  }
+  
+  const parts = text.split('₹');
+  const isNegative = text.startsWith('-');
+  const numberPart = parts[1] || '';
+  const displayStr = (isNegative ? '-' : '') + '   ' + numberPart;
+  
+  if (align === 'right') {
+    doc.text(displayStr, x, y, { align: 'right' });
+    const numberWidth = doc.getTextWidth(numberPart);
+    const spaceWidth = doc.getTextWidth('   ');
+    const rupeeX = x - numberWidth - spaceWidth * 0.85;
+    drawRupeeSymbol(doc, rupeeX, y, doc.getFontSize());
+  } else {
+    const prefix = isNegative ? '-' : '';
+    if (prefix) {
+      doc.text(prefix, x, y);
+      const prefixWidth = doc.getTextWidth(prefix);
+      drawRupeeSymbol(doc, x + prefixWidth + 1.5, y, doc.getFontSize());
+      doc.text(numberPart, x + prefixWidth + doc.getTextWidth('   ') + 1.5, y);
+    } else {
+      drawRupeeSymbol(doc, x, y, doc.getFontSize());
+      doc.text(numberPart, x + doc.getTextWidth('   '), y);
+    }
+  }
+}
 
 interface QuotationInvoiceProps {
   customers: Customer[];
@@ -52,6 +148,249 @@ export default function QuotationInvoice({
     total: number;
     type: 'QUOTATION' | 'INVOICE';
   } | null>(null);
+
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const handleDownloadPDF = async () => {
+    if (!selectedDoc) return;
+    setIsDownloading(true);
+    try {
+      // 1. Authorize on backend and log audit trace
+      await api.verifyPDFAccess(
+        selectedDoc.id,
+        selectedDoc.type,
+        Math.round(selectedDoc.total),
+        selectedDoc.customerName
+      );
+
+      // 2. Generate PDF document using jsPDF
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // Page parameters
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 15;
+      const contentWidth = pageWidth - 2 * margin;
+
+      // Header Brand Accent Bar (Red)
+      doc.setFillColor(220, 38, 38);
+      doc.rect(margin, 12, contentWidth, 1.5, 'F');
+
+      // Title & Company details
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(20);
+      doc.setTextColor(220, 38, 38);
+      doc.text('AGRASEN FLEX PRINTERS', margin, 22);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text([
+        'Gali No. 4, Rohini Industrial Area, Delhi-110085',
+        'Phone: +91 98765-43210 | Email: contact@agrasenflex.com',
+        'GSTIN: 07AGRPF1234M1ZX'
+      ], margin, 27);
+
+      // Document Type & Metadata (Right side)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(30, 41, 59);
+      doc.text(selectedDoc.type === 'INVOICE' ? 'TAX INVOICE' : 'QUOTATION / ESTIMATE', pageWidth - margin, 22, { align: 'right' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text([
+        `Doc Number: ${selectedDoc.id}`,
+        `Date: ${selectedDoc.date}`,
+        selectedDoc.type === 'INVOICE' 
+          ? `Due Date: ${new Date(new Date(selectedDoc.date).getTime() + 10 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`
+          : `Valid Until: ${new Date(new Date(selectedDoc.date).getTime() + 15 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}`
+      ], pageWidth - margin, 27, { align: 'right' });
+
+      // Solid dividing line
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.4);
+      doc.line(margin, 43, pageWidth - margin, 43);
+
+      // Client Bill To Section
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('BILLED TO / CUSTOMER LEDGER:', margin, 49);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(selectedDoc.customerName, margin, 55);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105);
+      doc.text([
+        'Active Registered Ledger Customer',
+        'GSTIN: Verified Customer GST / Exempt',
+        'Place of Supply: Delhi (07), India'
+      ], margin, 60);
+
+      // Line Items Table Header
+      const tableHeaderY = 78;
+      doc.setFillColor(30, 41, 59); // Slate-800
+      doc.rect(margin, tableHeaderY, contentWidth, 7, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(255, 255, 255);
+      doc.text('Line Item Description / Specifications', margin + 3, tableHeaderY + 4.8);
+      doc.text('Qty', 130, tableHeaderY + 4.8, { align: 'right' });
+      doc.text('Rate', 160, tableHeaderY + 4.8, { align: 'right' });
+      doc.text('Amount (INR)', pageWidth - margin - 3, tableHeaderY + 4.8, { align: 'right' });
+
+      // Table Rows
+      let rowY = tableHeaderY + 7;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+
+      selectedDoc.items.forEach((item, index) => {
+        // Automatic page split protection if too long
+        if (rowY > pageHeight - 85) {
+          doc.addPage();
+          rowY = 20;
+          // Re-draw table header
+          doc.setFillColor(30, 41, 59);
+          doc.rect(margin, rowY, contentWidth, 7, 'F');
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.setTextColor(255, 255, 255);
+          doc.text('Line Item Description / Specifications', margin + 3, rowY + 4.8);
+          doc.text('Qty', 130, rowY + 4.8, { align: 'right' });
+          doc.text('Rate', 160, rowY + 4.8, { align: 'right' });
+          doc.text('Amount (INR)', pageWidth - margin - 3, rowY + 4.8, { align: 'right' });
+          rowY += 7;
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(8.5);
+        }
+
+        // Alternating background
+        if (index % 2 === 1) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(margin, rowY, contentWidth, 8, 'F');
+        }
+
+        // Row contents
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'bold');
+        doc.text(item.description, margin + 3, rowY + 5.5);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(71, 85, 105);
+        doc.text(item.quantity.toLocaleString(), 130, rowY + 5.5, { align: 'right' });
+        
+        // Draw prices using custom Rupee symbol vector helper
+        drawTextWithRupee(doc, `₹${item.rate.toLocaleString()}`, 160, rowY + 5.5, 'right');
+        drawTextWithRupee(doc, `₹${item.amount.toLocaleString()}`, pageWidth - margin - 3, rowY + 5.5, 'right');
+
+        // Border line under row
+        doc.setDrawColor(241, 245, 249);
+        doc.setLineWidth(0.3);
+        doc.line(margin, rowY + 8, pageWidth - margin, rowY + 8);
+
+        rowY += 8;
+      });
+
+      // Calculation summary block
+      let summaryY = rowY + 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+
+      doc.text('Subtotal:', 145, summaryY, { align: 'right' });
+      drawTextWithRupee(doc, `₹${Math.round(selectedDoc.subtotal).toLocaleString()}`, pageWidth - margin - 3, summaryY, 'right');
+
+      if (selectedDoc.discount > 0) {
+        summaryY += 6;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(16, 185, 129); // Emerald-500
+        doc.text('Discount Coupon:', 145, summaryY, { align: 'right' });
+        drawTextWithRupee(doc, `-₹${Math.round(selectedDoc.discount).toLocaleString()}`, pageWidth - margin - 3, summaryY, 'right');
+      }
+
+      summaryY += 6;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 116, 139);
+      doc.text('SGST + CGST (18%):', 145, summaryY, { align: 'right' });
+      drawTextWithRupee(doc, `₹${Math.round(selectedDoc.gstAmount).toLocaleString()}`, pageWidth - margin - 3, summaryY, 'right');
+
+      // Thick divider line for Grand Total
+      summaryY += 8;
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.5);
+      doc.line(125, summaryY - 4, pageWidth - margin, summaryY - 4);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42);
+      doc.text('Grand Total (INR):', 145, summaryY, { align: 'right' });
+      drawTextWithRupee(doc, `₹${Math.round(selectedDoc.total).toLocaleString()}`, pageWidth - margin - 3, summaryY, 'right');
+
+      // Amount in Words
+      const amtWords = numberToWords(selectedDoc.total);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`Amount in Words: ${amtWords}`, margin, summaryY + 5);
+
+      // Footnotes & Signature area (Sticky bottom layout)
+      const footerY = 245;
+      doc.setDrawColor(226, 232, 240);
+      doc.setLineWidth(0.4);
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Terms & Conditions:', margin, footerY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(100, 116, 139);
+      doc.text([
+        '1. 50% advance along with approved layout layout design.',
+        '2. Dynamic delivery subject to installation bounds and site readiness.',
+        '3. Under laws of NCT, Delhi.'
+      ], margin, footerY + 4);
+
+      // Signature line
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text('Authorized Signatory', pageWidth - margin - 25, footerY + 16, { align: 'center' });
+      doc.setDrawColor(148, 163, 184);
+      doc.setLineWidth(0.4);
+      doc.line(pageWidth - margin - 50, footerY + 12, pageWidth - margin, footerY + 12);
+
+      // Bottom footer greeting
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Thank you for choosing Agrasen Flex Printers!', pageWidth / 2, 282, { align: 'center' });
+
+      // Save PDF
+      const docCodeName = selectedDoc.id.replace(/\//g, '-');
+      const docPrefixName = selectedDoc.type.toLowerCase() === 'invoice' ? 'Invoice' : 'Quotation';
+      const fileName = `${docPrefixName}-${docCodeName}.pdf`;
+      doc.save(fileName);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'An error occurred while validating permissions and exporting PDF.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const handleAddItem = () => {
     if (!newItemDesc) return;
@@ -553,16 +892,52 @@ export default function QuotationInvoice({
               </div>
             </div>
 
-            {/* Sim PDF Trigger */}
-            <button
-              onClick={() => {
-                alert(lang === 'EN' ? 'Simulating High-Quality PDF export to disk...' : 'हाई-क्वालिटी पीडीएफ एक्सपोर्ट की नकल की जा रही है...');
-              }}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs"
-            >
-              <Download className="w-4 h-4" />
-              Download PDF Attachment
-            </button>
+            {/* Document Actions Panel */}
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                {/* Download PDF Action */}
+                <button
+                  onClick={handleDownloadPDF}
+                  disabled={isDownloading}
+                  className="py-3 px-4 bg-red-600 hover:bg-red-700 disabled:bg-slate-300 text-white font-sans text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed transition-all shadow-xs hover:shadow-md col-span-2"
+                >
+                  <Download className="w-4 h-4 animate-bounce" />
+                  {isDownloading 
+                    ? (lang === 'EN' ? 'Verifying & Generating...' : 'सत्यापित और जनरेट किया जा रहा है...') 
+                    : (lang === 'EN' ? 'Download Professional PDF' : 'प्रोफेशनल पीडीएफ डाउनलोड करें')}
+                </button>
+
+                {/* Print Invoice Action */}
+                <button
+                  onClick={() => window.print()}
+                  className="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-sans text-xs font-bold rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all shadow-xs"
+                >
+                  <Printer className="w-4 h-4" />
+                  {lang === 'EN' ? 'Print Document' : 'दस्तावेज़ प्रिंट करें'}
+                </button>
+
+                {/* WhatsApp Action (Future Integration) */}
+                <button
+                  disabled
+                  title="WhatsApp Integration Coming Soon"
+                  className="py-2.5 px-4 bg-slate-50 text-slate-400 border border-slate-200 font-sans text-[11px] font-semibold rounded-xl flex items-center justify-center gap-1.5 cursor-not-allowed opacity-80"
+                >
+                  <Share2 className="w-3.5 h-3.5 text-slate-400" />
+                  WhatsApp
+                  <span className="text-[8px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded-sm font-medium scale-90">Soon</span>
+                </button>
+              </div>
+
+              {/* Email Send Action (Future Integration) */}
+              <button
+                disabled
+                title="Email Integration Coming Soon"
+                className="w-full py-2.5 px-4 bg-slate-50 text-slate-400 border border-slate-200 font-sans text-[11px] font-semibold rounded-xl flex items-center justify-center gap-2 cursor-not-allowed opacity-80"
+              >
+                <Mail className="w-4 h-4 text-slate-400" />
+                {lang === 'EN' ? 'Send via Email (Future Integration)' : 'ईमेल द्वारा भेजें (भविष्य एकीकरण)'}
+              </button>
+            </div>
           </div>
         ) : (
           <div className="text-center py-24 text-slate-400 space-y-3 my-auto">

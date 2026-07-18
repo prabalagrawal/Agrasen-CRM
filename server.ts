@@ -875,6 +875,39 @@ app.post("/api/sync", authenticateSession, (req, res) => {
   res.json({ success: true });
 });
 
+// 16b. Billing PDF Download Verification & Audit Logging
+app.post("/api/billing/verify-pdf-access", authenticateSession, (req: any, res) => {
+  const { docId, docType, totalAmount, customerName } = req.body;
+  
+  // Backend verification of billing permissions (viewBilling)
+  if (!req.employee.permissions || !req.employee.permissions.viewBilling) {
+    return res.status(403).json({ 
+      error: "Forbidden: You do not have permission to download billing documents." 
+    });
+  }
+
+  // Write audit log entry
+  const db = getDatabase();
+  const timestamp = new Date().toISOString().replace("T", " ").substring(0, 19);
+  
+  const logMessage = `Downloaded PDF for ${docType} ${docId} (Customer: ${customerName}, Total: ₹${totalAmount})`;
+  
+  const auditLog = {
+    id: `AUDIT-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+    username: `${req.employee.name} (${req.employee.role})`,
+    action: "PDF Document Export",
+    timestamp,
+    device: "Web Client",
+    beforeValue: "",
+    afterValue: logMessage
+  };
+
+  db.auditLogs = [auditLog, ...db.auditLogs].slice(0, 100);
+  saveDatabase(db);
+
+  res.json({ success: true, message: "PDF generation authorized and logged successfully." });
+});
+
 // 17. Global Search Endpoint
 app.get("/api/search", authenticateSession, (req, res) => {
   const q = (req.query.q as string || "").toLowerCase().trim();

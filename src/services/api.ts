@@ -652,6 +652,42 @@ export const api = {
     }
   },
 
+  // Verify and log PDF generation/download request
+  async verifyPDFAccess(docId: string, docType: string, totalAmount: number, customerName: string): Promise<boolean> {
+    try {
+      const res = await fetch(`${API_BASE}/billing/verify-pdf-access`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ docId, docType, totalAmount, customerName })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Access Denied');
+      }
+      return true;
+    } catch (e: any) {
+      // Offline fallback: verify permissions locally using the stored session/employee
+      const sessionToken = localStorage.getItem('abms_session_token');
+      if (!sessionToken) throw new Error('Authentication Failed: No active session.');
+      
+      const emps = getFallbackEmployees();
+      const sessions = JSON.parse(localStorage.getItem('abms_sessions') || '[]');
+      const activeSession = sessions.find((s: any) => s.token === sessionToken);
+      if (!activeSession) throw new Error('Authentication Failed: Session expired or invalid.');
+      
+      const employee = emps.find(e => e.id === activeSession.employeeId);
+      if (!employee || employee.status === 'Deactivated' || employee.softDeleted) {
+        throw new Error('Authentication Failed: Employee account is invalid.');
+      }
+      
+      if (!employee.permissions || !employee.permissions.viewBilling) {
+        throw new Error('Forbidden: You do not have permission to download billing documents.');
+      }
+      
+      return true;
+    }
+  },
+
   // Global Multi-Model Spotlight Search
   async globalSearch(q: string): Promise<any> {
     try {
