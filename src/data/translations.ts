@@ -62,6 +62,7 @@ export const translations = {
     uxRedesignProposal: 'UX Redesign Proposal 📱',
     billingTab: 'Billing & Invoices',
     siteSurvey: 'Site Survey & Installation',
+    whatsappInbox: 'Omnichannel Inbox',
 
     // Pricing Calculator
     calculatorTitle: 'Smart Production Cost & Selling Price Calculator',
@@ -169,6 +170,7 @@ export const translations = {
     uxRedesignProposal: 'यूएक्स रीडिजाइन प्रस्ताव 📱',
     billingTab: 'बिलिंग और इनवॉइस',
     siteSurvey: 'साइट सर्वे और फिटिंग',
+    whatsappInbox: 'व्हाट्सएप इनबॉक्स',
 
     // Pricing Calculator
     calculatorTitle: 'उत्पादन लागत और बिक्री मूल्य कैलकुलेटर',

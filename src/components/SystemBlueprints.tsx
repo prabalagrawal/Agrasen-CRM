@@ -158,62 +158,125 @@ export default function SystemBlueprints() {
             {/* Relational Database Design */}
             <div>
               <h3 className="text-lg font-extrabold text-slate-900 border-b border-slate-100 pb-2 mb-4 flex items-center gap-2 font-display">
-                <span className="text-red-650 font-mono">2.1</span> Relational Database Design (PostgreSQL / Cloud SQL Schema)
+                <span className="text-red-650 font-mono">2.1</span> Relational Database & Entity Relationship Model
               </h3>
               <p className="text-sm text-slate-600 mb-5 leading-relaxed font-medium">
-                The database is structured to support strong referential integrity, cascading updates, and extensive logging. Below are the key tables designed for production deployment:
+                The database is a highly normalized relational model designed in <strong>PostgreSQL</strong> via <strong>Prisma ORM</strong> to guarantee referential integrity, strong constraints, and scalability. Below are the core enterprise relationships, cascading behaviors, and the official data schema definition:
               </p>
-              
+
+              {/* Relationship Integrity Specs */}
+              <div className="grid md:grid-cols-2 gap-6 mb-6">
+                <div className="p-5 bg-slate-900 text-slate-100 rounded-2xl border border-slate-800 space-y-4 shadow-md">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-red-500 font-mono">CORE ENTITY RELATIONSHIPS</h4>
+                  <ul className="space-y-2.5 text-xs font-mono text-slate-300">
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">1. Customer → Quotations:</span>
+                      <span>1-to-Many. Managed via <code>ON DELETE RESTRICT</code> to prevent orphan order records.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">2. Quotation → Products:</span>
+                      <span>1-to-Many. Models line items with strict price locks and margin configurations.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">3. Quotation → Workflow:</span>
+                      <span>1-to-1. Controls the current execution phase from design to final on-site installation.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">4. Workflow → Audit Logs:</span>
+                      <span>1-to-Many. Captures timestamped state changes, digital checksum hashes, and terminal telemetry.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">5. Workflow → Attachments:</span>
+                      <span>1-to-Many. Stores write-protected references to files uploaded securely to Cloudflare R2.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">6. Customer → Payments:</span>
+                      <span>1-to-Many. Outstanding balance calculated dynamically; supports multi-mode payments.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">7. Employee → Assigned Jobs:</span>
+                      <span>1-to-Many. Real-time task allocation with role restrictions and status transitions.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-emerald-400 font-bold">8. Inventory → Purchase Orders:</span>
+                      <span>1-to-Many PO lines tracking suppliers, current rates, and automated stock increments.</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="p-5 bg-red-50/50 border border-red-200/85 rounded-2xl space-y-4">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-red-950">FILE STORAGE STRATEGY (CLOUDFLARE R2)</h4>
+                  <p className="text-xs text-slate-700 leading-relaxed font-semibold">
+                    To prevent bloating the PostgreSQL database, all files (site photos, design drafts, customer signatures, artwork vectors, PDF invoices) are stored in **Cloudflare R2**. 
+                  </p>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    The database stores strictly structured metadata for each uploaded asset. File delivery is permission-checked at the NestJS gateway, generating **short-lived signed URLs** instead of permanent public routes.
+                  </p>
+                  <div className="bg-white border border-slate-200 rounded-xl p-3 font-mono text-[10px] text-slate-800 space-y-1 shadow-2xs">
+                    <span className="font-bold text-red-700 block mb-1">R2 Database Metadata Schema:</span>
+                    <div>• <code>id: UUID</code> (Primary Key)</div>
+                    <div>• <code>originalName: String</code> (Original File Name)</div>
+                    <div>• <code>storageKey: String UNIQUE</code> (R2 Object Key)</div>
+                    <div>• <code>mimeType: String</code> (Validation filter, e.g. image/png)</div>
+                    <div>• <code>size: Int</code> (Strict validation up to 25MB)</div>
+                    <div>• <code>checksum: String</code> (SHA-256 for data verification)</div>
+                    <div>• <code>uploadedById: UUID REFERENCES Employees(id)</code></div>
+                    <div>• <code>relatedRecordId: UUID</code> (Polymorphic Relation Identifier)</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Prisma Schema Display */}
               <div className="space-y-4">
-                {/* Tables Grid */}
+                <h4 className="text-sm font-extrabold text-slate-900 font-display">Prisma Schema Definition (Production-Grade Modeling)</h4>
                 <div className="grid md:grid-cols-2 gap-6">
-                  <div className="p-5 border border-slate-800 rounded-2xl font-mono text-xs bg-slate-950 text-slate-300 leading-relaxed shadow-lg">
-                    <span className="text-yellow-500 font-bold">CREATE TABLE</span> customers (
-                    <br />&nbsp;&nbsp;id <span className="text-teal-400">UUID PRIMARY KEY DEFAULT gen_random_uuid()</span>,
-                    <br />&nbsp;&nbsp;name <span className="text-teal-400">VARCHAR(255) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;phone <span className="text-teal-400">VARCHAR(15) UNIQUE NOT NULL</span>,
-                    <br />&nbsp;&nbsp;gstin <span className="text-teal-400">VARCHAR(15)</span>,
-                    <br />&nbsp;&nbsp;address <span className="text-teal-400">TEXT</span>,
-                    <br />&nbsp;&nbsp;email <span className="text-teal-400">VARCHAR(255)</span>,
-                    <br />&nbsp;&nbsp;created_at <span className="text-teal-400">TIMESTAMP DEFAULT CURRENT_TIMESTAMP</span>
-                    <br />);
-                  </div>
-                  
-                  <div className="p-5 border border-slate-800 rounded-2xl font-mono text-xs bg-slate-950 text-slate-300 leading-relaxed shadow-lg">
-                    <span className="text-yellow-500 font-bold">CREATE TABLE</span> jobs (
-                    <br />&nbsp;&nbsp;id <span className="text-teal-400">UUID PRIMARY KEY DEFAULT gen_random_uuid()</span>,
-                    <br />&nbsp;&nbsp;title <span className="text-teal-400">VARCHAR(255) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;customer_id <span className="text-teal-400">UUID REFERENCES customers(id) ON DELETE RESTRICT</span>,
-                    <br />&nbsp;&nbsp;assigned_to <span className="text-teal-400">UUID REFERENCES users(id)</span>,
-                    <br />&nbsp;&nbsp;status <span className="text-teal-400">VARCHAR(50) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;priority <span className="text-teal-400">VARCHAR(20) DEFAULT 'Medium'</span>,
-                    <br />&nbsp;&nbsp;deadline <span className="text-teal-400">DATE</span>,
-                    <br />&nbsp;&nbsp;total_cost <span className="text-teal-400">NUMERIC(10,2) DEFAULT 0.00</span>
-                    <br />);
+                  <div className="p-5 border border-slate-800 rounded-2xl font-mono text-xs bg-slate-950 text-slate-300 leading-relaxed shadow-lg overflow-x-auto">
+                    <span className="text-yellow-500 font-bold">model</span> <span className="text-emerald-400 font-bold">Customer</span> &#123;
+                    <br />&nbsp;&nbsp;id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@id @default(uuid()) @db.Uuid
+                    <br />&nbsp;&nbsp;name &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String
+                    <br />&nbsp;&nbsp;phone &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@unique
+                    <br />&nbsp;&nbsp;gstin &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String? &nbsp;&nbsp;&nbsp;&nbsp;@db.VarChar(15)
+                    <br />&nbsp;&nbsp;address &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String?
+                    <br />&nbsp;&nbsp;quotations &nbsp;&nbsp;Quotation[]
+                    <br />&nbsp;&nbsp;payments &nbsp;&nbsp;&nbsp;&nbsp;Payment[]
+                    <br />&nbsp;&nbsp;createdAt &nbsp;&nbsp;&nbsp;DateTime &nbsp;&nbsp;&nbsp;@default(now())
+                    <br />&#125;
+                    <br />
+                    <br /><span className="text-yellow-500 font-bold">model</span> <span className="text-emerald-400 font-bold">Quotation</span> &#123;
+                    <br />&nbsp;&nbsp;id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@id @default(uuid()) @db.Uuid
+                    <br />&nbsp;&nbsp;customerId &nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@db.Uuid
+                    <br />&nbsp;&nbsp;customer &nbsp;&nbsp;&nbsp;&nbsp;Customer &nbsp;&nbsp;&nbsp;@relation(fields: [customerId], references: [id], onDelete: Restrict)
+                    <br />&nbsp;&nbsp;products &nbsp;&nbsp;&nbsp;&nbsp;Product[]
+                    <br />&nbsp;&nbsp;workflow &nbsp;&nbsp;&nbsp;&nbsp;Workflow?
+                    <br />&nbsp;&nbsp;totalAmount &nbsp;Decimal &nbsp;&nbsp;&nbsp;&nbsp;@db.Decimal(10, 2)
+                    <br />&nbsp;&nbsp;createdAt &nbsp;&nbsp;&nbsp;DateTime &nbsp;&nbsp;&nbsp;@default(now())
+                    <br />&#125;
                   </div>
 
-                  <div className="p-5 border border-slate-800 rounded-2xl font-mono text-xs bg-slate-950 text-slate-300 leading-relaxed shadow-lg">
-                    <span className="text-yellow-500 font-bold">CREATE TABLE</span> materials (
-                    <br />&nbsp;&nbsp;id <span className="text-teal-400">UUID PRIMARY KEY DEFAULT gen_random_uuid()</span>,
-                    <br />&nbsp;&nbsp;name <span className="text-teal-400">VARCHAR(255) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;category <span className="text-teal-400">VARCHAR(50) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;stock_qty <span className="text-teal-400">NUMERIC(10,2) DEFAULT 0.00</span>,
-                    <br />&nbsp;&nbsp;min_stock_qty <span className="text-teal-400">NUMERIC(10,2) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;unit <span className="text-teal-400">VARCHAR(20) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;last_price <span className="text-teal-400">NUMERIC(10,2)</span>
-                    <br />);
-                  </div>
-
-                  <div className="p-5 border border-slate-800 rounded-2xl font-mono text-xs bg-slate-950 text-slate-300 leading-relaxed shadow-lg">
-                    <span className="text-yellow-500 font-bold">CREATE TABLE</span> tickets (
-                    <br />&nbsp;&nbsp;id <span className="text-teal-400">UUID PRIMARY KEY DEFAULT gen_random_uuid()</span>,
-                    <br />&nbsp;&nbsp;title <span className="text-teal-400">VARCHAR(255) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;type <span className="text-teal-400">VARCHAR(50) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;raised_by <span className="text-teal-400">UUID REFERENCES users(id)</span>,
-                    <br />&nbsp;&nbsp;status <span className="text-teal-400">VARCHAR(30) NOT NULL</span>,
-                    <br />&nbsp;&nbsp;priority <span className="text-teal-400">VARCHAR(20)</span>,
-                    <br />&nbsp;&nbsp;created_at <span className="text-teal-400">TIMESTAMP DEFAULT CURRENT_TIMESTAMP</span>
-                    <br />);
+                  <div className="p-5 border border-slate-800 rounded-2xl font-mono text-xs bg-slate-950 text-slate-300 leading-relaxed shadow-lg overflow-x-auto">
+                    <span className="text-yellow-500 font-bold">model</span> <span className="text-emerald-400 font-bold">Workflow</span> &#123;
+                    <br />&nbsp;&nbsp;id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@id @default(uuid()) @db.Uuid
+                    <br />&nbsp;&nbsp;quotationId &nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@unique @db.Uuid
+                    <br />&nbsp;&nbsp;quotation &nbsp;&nbsp;&nbsp;Quotation &nbsp;&nbsp;@relation(fields: [quotationId], references: [id], onDelete: Cascade)
+                    <br />&nbsp;&nbsp;currentStage String
+                    <br />&nbsp;&nbsp;isLocked &nbsp;&nbsp;&nbsp;&nbsp;Boolean &nbsp;&nbsp;&nbsp;&nbsp;@default(false)
+                    <br />&nbsp;&nbsp;attachments &nbsp;Attachment[]
+                    <br />&nbsp;&nbsp;auditLogs &nbsp;&nbsp;&nbsp;AuditLog[]
+                    <br />&nbsp;&nbsp;updatedAt &nbsp;&nbsp;&nbsp;DateTime &nbsp;&nbsp;&nbsp;@updatedAt
+                    <br />&#125;
+                    <br />
+                    <br /><span className="text-yellow-500 font-bold">model</span> <span className="text-emerald-400 font-bold">Attachment</span> &#123;
+                    <br />&nbsp;&nbsp;id &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@id @default(uuid()) @db.Uuid
+                    <br />&nbsp;&nbsp;workflowId &nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@db.Uuid
+                    <br />&nbsp;&nbsp;workflow &nbsp;&nbsp;&nbsp;&nbsp;Workflow &nbsp;&nbsp;&nbsp;@relation(fields: [workflowId], references: [id], onDelete: Cascade)
+                    <br />&nbsp;&nbsp;originalName String
+                    <br />&nbsp;&nbsp;storageKey &nbsp;&nbsp;String &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;@unique
+                    <br />&nbsp;&nbsp;mimeType &nbsp;&nbsp;&nbsp;&nbsp;String
+                    <br />&nbsp;&nbsp;size &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Int
+                    <br />&nbsp;&nbsp;checksum &nbsp;&nbsp;&nbsp;&nbsp;String
+                    <br />&nbsp;&nbsp;uploadedBy &nbsp;&nbsp;String
+                    <br />&nbsp;&nbsp;createdAt &nbsp;&nbsp;&nbsp;DateTime &nbsp;&nbsp;&nbsp;@default(now())
+                    <br />&#125;
                   </div>
                 </div>
               </div>
@@ -305,34 +368,42 @@ export default function SystemBlueprints() {
             {/* System Architecture */}
             <div>
               <h3 className="text-lg font-extrabold text-slate-900 border-b border-slate-100 pb-2 mb-4 flex items-center gap-2 font-display">
-                <span className="text-red-650 font-mono">3.1</span> 3-Tier Enterprise Application Architecture
+                <span className="text-red-650 font-mono">3.1</span> Enterprise SaaS Production Architecture
               </h3>
               <p className="text-sm text-slate-600 mb-5 leading-relaxed font-medium">
-                To guarantee scaling and uptime for the next 10 years, ABMS is structured using a robust 3-Tier architecture running on Cloud Run:
+                The production deployment of ABMS leverages a micro-services friendly, high-availability architecture designed to support millions of records and seamless multi-branch operations:
               </p>
               
-              <div className="grid md:grid-cols-3 gap-6">
-                <div className="p-5.5 border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                  <div className="text-red-650 font-mono font-black text-[10px] uppercase tracking-wider mb-2">TIER 1 — PRESENTATION LAYER</div>
-                  <h4 className="font-extrabold text-sm text-slate-900 mb-1.5 font-display">React + Vite SPA Client</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                    A blazing-fast, mobile-optimized Single Page Application using Tailwind CSS and Lucide React. Integrates local storage for smooth transition tracking and utilizes CSS flexboxes optimized for low-bandwidth 4G connection in workshops.
+              <div className="grid md:grid-cols-4 gap-4">
+                <div className="p-4.5 border border-slate-200 rounded-2xl bg-white shadow-2xs space-y-2">
+                  <div className="text-red-650 font-mono font-black text-[9px] uppercase tracking-wider">TIER 1 — FRONTEND</div>
+                  <h4 className="font-extrabold text-xs text-slate-900 font-display">Next.js (App Router) + shadcn</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    A statically pre-rendered React workspace styled with Tailwind CSS, leveraging modular layouts, absolute path aliases, responsive views, and localized translation contexts (Hindi/English).
                   </p>
                 </div>
                 
-                <div className="p-5.5 border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                  <div className="text-red-650 font-mono font-black text-[10px] uppercase tracking-wider mb-2">TIER 2 — SERVICES & API LAYER</div>
-                  <h4 className="font-extrabold text-sm text-slate-900 mb-1.5 font-display">Node/Express Core REST API</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                    Manages authentication, session tracking, validation rules, ticket generation queues, PDF processing, and pricing calculations. Exposes a webhook gateway for future automated WhatsApp follow-ups and CRM syncing.
+                <div className="p-4.5 border border-slate-200 rounded-2xl bg-white shadow-2xs space-y-2">
+                  <div className="text-red-650 font-mono font-black text-[9px] uppercase tracking-wider">TIER 2 — BACKEND</div>
+                  <h4 className="font-extrabold text-xs text-slate-900 font-display">NestJS Core REST & WebSockets</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Built on NestJS for clean Dependency Injection, central error boundary filters, strict class-validator decorators, and real-time operational socket events (WebSockets).
                   </p>
                 </div>
 
-                <div className="p-5.5 border border-slate-200 rounded-2xl bg-white shadow-2xs">
-                  <div className="text-red-650 font-mono font-black text-[10px] uppercase tracking-wider mb-2">TIER 3 — PERSISTENCE LAYER</div>
-                  <h4 className="font-extrabold text-sm text-slate-900 mb-1.5 font-display">Cloud SQL & Auth Engine</h4>
-                  <p className="text-xs text-slate-500 leading-relaxed font-semibold">
-                    Utilizes Cloud SQL (PostgreSQL) for transactional database consistency, paired with Firebase Authentication for passwordless OTP sign-in. Stores binary engineering files (CDR, PDF drafts, photos) inside secure Cloud Storage buckets.
+                <div className="p-4.5 border border-slate-200 rounded-2xl bg-white shadow-2xs space-y-2">
+                  <div className="text-red-650 font-mono font-black text-[9px] uppercase tracking-wider">TIER 3 — PERSISTENCE</div>
+                  <h4 className="font-extrabold text-xs text-slate-900 font-display">PostgreSQL + Prisma ORM</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Fully normalized database engine. Implements standard transaction execution scopes, automated schema migrations, indexing, and strict constraints (Prisma).
+                  </p>
+                </div>
+
+                <div className="p-4.5 border border-slate-200 rounded-2xl bg-white shadow-2xs space-y-2">
+                  <div className="text-red-650 font-mono font-black text-[9px] uppercase tracking-wider">CACHE & QUEUES</div>
+                  <h4 className="font-extrabold text-xs text-slate-900 font-display">Redis + BullMQ Pipelines</h4>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Facilitates low-latency cache stores and handles asynchronous workloads (automated PDF reports generator, WhatsApp approvals, and follow-up email campaigns).
                   </p>
                 </div>
               </div>
@@ -341,36 +412,36 @@ export default function SystemBlueprints() {
             {/* Security Protocols */}
             <div>
               <h3 className="text-lg font-extrabold text-slate-900 border-b border-slate-100 pb-2 mb-4 flex items-center gap-2 font-display">
-                <span className="text-red-650 font-mono">3.2</span> Security Protocols & Data Protection
+                <span className="text-red-650 font-mono">3.2</span> Security, Authentication, & Compliance Protocol
               </h3>
               
-              <div className="space-y-4">
-                {[
-                  {
-                    title: 'Secure OTP-Based Login',
-                    desc: 'Signage operators and delivery boys don\'t use traditional long passwords. Passwordless login with Firebase Authentication via WhatsApp OTP provides zero-friction access while locking down credentials.'
-                  },
-                  {
-                    title: 'Daily Cloud Backup & Snapshotting',
-                    desc: 'Database snapshots taken at 11:30 PM (IST) automatically, retained for 1 year. Secondary offline backups can be exported manually via CSV export from the Owner\'s Panel.'
-                  },
-                  {
-                    title: 'System Access Log Audit Trail',
-                    desc: 'Every billing update, stock withdrawal, or deadline shift is logged inside an immutable `audit_logs` table with actor UUID, timestamp, ip_address, and previous state.'
-                  },
-                  {
-                    title: 'Edge Caching & Cloudflare Web Application Firewall',
-                    desc: 'Mitigates denial-of-service threats, and restricts administrative panels to authorized IP bounds if required by the owner.'
-                  }
-                ].map((proto, idx) => (
-                  <div key={idx} className="p-4.5 border border-red-100 bg-red-50/20 rounded-2xl">
-                    <h4 className="text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                      <ShieldAlert className="w-4.5 h-4.5 text-red-650 shrink-0" />
-                      {proto.title}
-                    </h4>
-                    <p className="text-xs text-slate-500 mt-1.5 pl-6.5 leading-relaxed font-semibold">{proto.desc}</p>
-                  </div>
-                ))}
+              <div className="grid md:grid-cols-2 gap-5">
+                <div className="p-5 border border-red-100 bg-red-50/20 rounded-2xl space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-red-950 flex items-center gap-1.5 font-mono">
+                    <ShieldAlert className="w-4.5 h-4.5 text-red-650 shrink-0" />
+                    ENTERPRISE SECURITY CONTROLS
+                  </h4>
+                  <ul className="space-y-2 text-xs text-slate-700 leading-relaxed font-semibold">
+                    <li>• <strong className="text-slate-900">RBAC:</strong> Role-Based Access Control verified at API routes level (Owner, Manager, Designer, Operator, Delivery).</li>
+                    <li>• <strong className="text-slate-900">Token Auth:</strong> Dual Token System (JWT Access Tokens & Refresh Tokens) delivered via HttpOnly, Secure, SameSite=Strict cookies.</li>
+                    <li>• <strong className="text-slate-900">SQLi & XSS:</strong> Auto-escaped inputs via Prisma queries, strict string sanitizers, and secure content security policies headers.</li>
+                    <li>• <strong className="text-slate-900">Rate Limiting:</strong> IP-based request throttlers on public API paths and login routes (NestJS Throttler).</li>
+                    <li>• <strong className="text-slate-900">Malware Scanning:</strong> Sandboxed file stream validation before files are dispatched to Cloudflare R2 storage.</li>
+                  </ul>
+                </div>
+
+                <div className="p-5 border border-slate-200 bg-slate-50 rounded-2xl space-y-3 font-mono text-[11px] text-slate-700">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-950 font-sans">SaaS PREPAREDNESS & EXTENSIBILITY</h4>
+                  <p className="leading-relaxed">
+                    Designed with future-proof abstractions (SOLID, Repository Pattern, and modular Service Providers) to support subsequent feature growth without rewrite overhead:
+                  </p>
+                  <ul className="space-y-1 text-[10px] text-slate-600">
+                    <li>• <strong>Multi-Tenancy:</strong> Tenant ID scoping implemented in database indexes.</li>
+                    <li>• <strong>Multi-Warehouse:</strong> Inventory tracking maps rolls to specific warehouse racks.</li>
+                    <li>• <strong>WhatsApp & Email:</strong> Clean webhook controller interfaces ready for Twilio/Meta Business integrations.</li>
+                    <li>• <strong>Scanner Support:</strong> Fields optimized for rapid keyboard-emulated QR/Barcode scanner inputs.</li>
+                  </ul>
+                </div>
               </div>
             </div>
           </div>

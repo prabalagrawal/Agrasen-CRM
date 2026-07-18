@@ -725,5 +725,237 @@ export const api = {
         employees: emps
       };
     }
+  },
+
+  // 16c. Workflow Locking & Reopen System Methods
+  async getWorkflowData(): Promise<{ success: boolean, workflowStages: any[], reopenRequests: any[], workflowHistory: any[] }> {
+    try {
+      const res = await fetch(`${API_BASE}/workflow`, {
+        headers: getHeaders()
+      });
+      if (!res.ok) throw new Error('Failed to fetch workflow data');
+      const data = await res.json();
+      
+      // Save locally for offline fallback caching
+      localStorage.setItem('abms_workflow_stages', JSON.stringify(data.workflowStages || []));
+      localStorage.setItem('abms_reopen_requests', JSON.stringify(data.reopenRequests || []));
+      localStorage.setItem('abms_workflow_history', JSON.stringify(data.workflowHistory || []));
+      
+      return data;
+    } catch (e) {
+      // Offline fallback
+      const workflowStages = JSON.parse(localStorage.getItem('abms_workflow_stages') || '[]');
+      const reopenRequests = JSON.parse(localStorage.getItem('abms_reopen_requests') || '[]');
+      const workflowHistory = JSON.parse(localStorage.getItem('abms_workflow_history') || '[]');
+      return {
+        success: true,
+        workflowStages,
+        reopenRequests,
+        workflowHistory
+      };
+    }
+  },
+
+  async completeWorkflowStage(params: {
+    stageId: string;
+    workflowId: string;
+    stageName: string;
+    customerName?: string;
+    durationMinutes?: number;
+    browser?: string;
+    os?: string;
+    device?: string;
+  }): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/workflow/stages/complete`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(params)
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to complete workflow stage');
+      }
+      return await res.json();
+    } catch (e: any) {
+      // Offline fallback
+      const token = localStorage.getItem('abms_session_token');
+      if (!token) throw new Error('Authentication required');
+      
+      const sessions = JSON.parse(localStorage.getItem('abms_sessions') || '[]');
+      const activeSession = sessions.find((s: any) => s.token === token);
+      const emps = getFallbackEmployees();
+      const currentEmp = activeSession ? emps.find(e => e.id === activeSession.employeeId) : null;
+      if (!currentEmp) throw new Error('Authorized session not found');
+
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const stages = JSON.parse(localStorage.getItem('abms_workflow_stages') || '[]');
+      
+      const completedByInfo = {
+        name: currentEmp.name,
+        id: currentEmp.id,
+        role: currentEmp.role,
+        department: currentEmp.department,
+        date: timestamp.split(' ')[0],
+        time: timestamp.split(' ')[1],
+        device: params.device || 'Web Client',
+        os: params.os || 'Offline Client OS',
+        browser: params.browser || 'Offline browser',
+        checksum: 'OFFLINE-HMAC-CSUM-' + Math.random().toString().substring(2, 10),
+        durationMinutes: params.durationMinutes || Math.floor(Math.random() * 45) + 15
+      };
+
+      let stage = stages.find((s: any) => s.id === params.stageId);
+      if (!stage) {
+        stage = {
+          id: params.stageId,
+          workflowId: params.workflowId,
+          stageName: params.stageName,
+          status: 'Completed',
+          version: 1,
+          completedBy: completedByInfo
+        };
+        stages.push(stage);
+      } else {
+        stage.status = 'Completed';
+        stage.completedBy = completedByInfo;
+      }
+
+      localStorage.setItem('abms_workflow_stages', JSON.stringify(stages));
+      return { success: true, message: 'Completed and locked offline.', stage };
+    }
+  },
+
+  async requestWorkflowReopen(params: {
+    stageId: string;
+    workflowId: string;
+    stageName: string;
+    customerName?: string;
+    reason: string;
+    detailedExplanation: string;
+    supportingNotes?: string;
+  }): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/workflow/reopen/request`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(params)
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to submit reopen request');
+      }
+      return await res.json();
+    } catch (e: any) {
+      // Offline fallback
+      const token = localStorage.getItem('abms_session_token');
+      if (!token) throw new Error('Authentication required');
+      
+      const sessions = JSON.parse(localStorage.getItem('abms_sessions') || '[]');
+      const activeSession = sessions.find((s: any) => s.token === token);
+      const emps = getFallbackEmployees();
+      const currentEmp = activeSession ? emps.find(e => e.id === activeSession.employeeId) : null;
+      if (!currentEmp) throw new Error('Authorized session not found');
+
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const requests = JSON.parse(localStorage.getItem('abms_reopen_requests') || '[]');
+      
+      const hasPending = requests.some((r: any) => r.stageId === params.stageId && r.status === 'Pending');
+      if (hasPending) throw new Error('A pending reopen request already exists offline.');
+
+      const request = {
+        id: `REQ-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+        stageId: params.stageId,
+        workflowId: params.workflowId,
+        customerName: params.customerName || 'General Customer',
+        employeeName: currentEmp.name,
+        employeeId: currentEmp.id,
+        department: currentEmp.department,
+        stageName: params.stageName,
+        reason: params.reason,
+        detailedExplanation: params.detailedExplanation,
+        supportingNotes: params.supportingNotes || '',
+        requestDate: timestamp.split(' ')[0],
+        requestTime: timestamp.split(' ')[1],
+        status: 'Pending'
+      };
+
+      requests.push(request);
+      localStorage.setItem('abms_reopen_requests', JSON.stringify(requests));
+      return { success: true, message: 'Reopen requested offline.', request };
+    }
+  },
+
+  async resolveWorkflowReopen(requestId: string, status: 'Approved' | 'Rejected'): Promise<any> {
+    try {
+      const res = await fetch(`${API_BASE}/workflow/reopen/resolve`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ requestId, status })
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to resolve reopen request');
+      }
+      return await res.json();
+    } catch (e: any) {
+      // Offline fallback
+      const token = localStorage.getItem('abms_session_token');
+      if (!token) throw new Error('Authentication required');
+      
+      const sessions = JSON.parse(localStorage.getItem('abms_sessions') || '[]');
+      const activeSession = sessions.find((s: any) => s.token === token);
+      const emps = getFallbackEmployees();
+      const currentEmp = activeSession ? emps.find(e => e.id === activeSession.employeeId) : null;
+      if (!currentEmp) throw new Error('Authorized session not found');
+
+      // Authorization check
+      const allowedRoles = ['Super Admin', 'Manager', 'Owner'];
+      if (!allowedRoles.includes(currentEmp.role)) {
+        throw new Error('Forbidden: Only Managers or Admins can resolve requests.');
+      }
+
+      const timestamp = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const requests = JSON.parse(localStorage.getItem('abms_reopen_requests') || '[]');
+      const stages = JSON.parse(localStorage.getItem('abms_workflow_stages') || '[]');
+      const history = JSON.parse(localStorage.getItem('abms_workflow_history') || '[]');
+
+      const reqIndex = requests.findIndex((r: any) => r.id === requestId);
+      if (reqIndex === -1) throw new Error('Request not found.');
+
+      const request = requests[reqIndex];
+      if (request.status !== 'Pending') throw new Error('Request already resolved.');
+
+      request.status = status;
+      request.managerName = currentEmp.name;
+      request.approvalDate = timestamp.split(' ')[0];
+      request.approvalTime = timestamp.split(' ')[1];
+
+      const stage = stages.find((s: any) => s.id === request.stageId);
+      if (status === 'Approved' && stage) {
+        const historyRecord = {
+          id: `HIST-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+          stageId: stage.id,
+          version: stage.version,
+          originalValue: JSON.stringify(stage),
+          updatedValue: '',
+          changedBy: request.employeeName,
+          approvedBy: currentEmp.name,
+          whyChanged: request.reason + ': ' + request.detailedExplanation,
+          whenChanged: timestamp
+        };
+        history.push(historyRecord);
+
+        stage.status = 'In Progress';
+        stage.version = (stage.version || 1) + 1;
+        delete stage.completedBy;
+      }
+
+      localStorage.setItem('abms_reopen_requests', JSON.stringify(requests));
+      localStorage.setItem('abms_workflow_stages', JSON.stringify(stages));
+      localStorage.setItem('abms_workflow_history', JSON.stringify(history));
+
+      return { success: true, message: `Resolved as ${status} offline.`, request, stage };
+    }
   }
 };

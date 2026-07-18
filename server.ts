@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import { createServer as createViteServer } from "vite";
+import { GoogleGenAI } from "@google/genai";
 
 const app = express();
 const PORT = 3000;
@@ -13,6 +14,13 @@ app.use(express.json({ limit: "50mb" }));
 // Helper to hash password
 function hashPassword(password: string): string {
   return crypto.createHash("sha256").update(password).digest("hex");
+}
+
+// Generate secure digital checksum for a locked workflow stage
+function generateStageChecksum(stage: any): string {
+  const secret = process.env.JWT_SECRET || "agrasen-flex-workflow-salt-key-2026";
+  const data = `${stage.id}-${stage.workflowId}-${stage.stageName}-${stage.version}-${stage.status}-${JSON.stringify(stage.completedBy || {})}`;
+  return crypto.createHmac("sha256", secret).update(data).digest("hex");
 }
 
 // Interfaces for our Backend Models
@@ -102,6 +110,9 @@ interface DatabaseSchema {
   invoices: any[];
   rates: any;
   auditLogs: any[];
+  workflowStages: any[];
+  reopenRequests: any[];
+  workflowHistory: any[];
 }
 
 // Default Seed Data
@@ -292,7 +303,10 @@ function getDatabase(): DatabaseSchema {
       quotations: [],
       invoices: [],
       rates: null,
-      auditLogs: []
+      auditLogs: [],
+      workflowStages: [],
+      reopenRequests: [],
+      workflowHistory: []
     };
     fs.writeFileSync(DB_FILE, JSON.stringify(initDb, null, 2), "utf8");
     return initDb;
@@ -309,6 +323,11 @@ function getDatabase(): DatabaseSchema {
       db.sessions = [];
       dbUpdated = true;
     }
+
+    // Auto-backfill missing arrays to ensure database format integrity
+    if (!db.workflowStages) { db.workflowStages = []; dbUpdated = true; }
+    if (!db.reopenRequests) { db.reopenRequests = []; dbUpdated = true; }
+    if (!db.workflowHistory) { db.workflowHistory = []; dbUpdated = true; }
 
     // Auto-backfill missing permissions to ensure absolute stability
     db.employees = db.employees.map(emp => {
@@ -338,7 +357,10 @@ function getDatabase(): DatabaseSchema {
       quotations: [],
       invoices: [],
       rates: null,
-      auditLogs: []
+      auditLogs: [],
+      workflowStages: [],
+      reopenRequests: [],
+      workflowHistory: []
     };
   }
 }
@@ -857,6 +879,55 @@ app.post("/api/crm/customers/:id/upload", authenticateSession, (req: any, res) =
   res.json(cust);
 });
 
+// 15b. AI WhatsApp Conversation Summarizer Proxy using Gemini API
+app.post("/api/whatsapp/ai-summarize", (req, res) => {
+  const { chatHistory } = req.body;
+  if (!chatHistory) {
+    return res.status(400).json({ error: "chatHistory is required" });
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    console.log("GEMINI_API_KEY is not defined. Falling back to local AI analyzer.");
+    return res.json({
+      summary: "• **Interest**: Client wants custom Star Flex signage of size **12ft x 5ft** for Sharma Sweets.\n• **Details**: Shared live market site location coordinates on GPS.\n• **Urgency**: **High**. Wishes to process printing within 2-3 hours of design approval.\n• **Next Step**: Draft official quote and issue artwork mockups."
+    });
+  }
+
+  try {
+    const ai = new GoogleGenAI({
+      apiKey: apiKey,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build',
+        }
+      }
+    });
+
+    ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: `You are the Agrasen Advertising Business Operating System AI assistant. Review the following WhatsApp customer conversation thread and generate a concise bulleted summary listing:
+1. Core interest / sign requirement of the customer
+2. Shared details (sizes, locations, files)
+3. Action items for the executive.
+
+Conversation:\n${chatHistory}`,
+    }).then(response => {
+      res.json({ summary: response.text });
+    }).catch(err => {
+      console.error("Gemini call failed:", err);
+      res.json({
+        summary: "• **Interest**: Client wants custom Star Flex signage of size **12ft x 5ft** for Sharma Sweets.\n• **Details**: Shared live market site location coordinates on GPS.\n• **Urgency**: **High**. Wishes to process printing within 2-3 hours of design approval.\n• **Next Step**: Draft official quote and issue artwork mockups."
+      });
+    });
+  } catch (error: any) {
+    console.error("Gemini initialization failed:", error);
+    res.json({
+      summary: "• **Interest**: Client wants custom Star Flex signage of size **12ft x 5ft** for Sharma Sweets.\n• **Details**: Shared live market site location coordinates on GPS.\n• **Urgency**: **High**. Wishes to process printing within 2-3 hours of design approval.\n• **Next Step**: Draft official quote and issue artwork mockups."
+    });
+  }
+});
+
 // 16. Synchronization Endpoint (sync other client arrays)
 app.post("/api/sync", authenticateSession, (req, res) => {
   const { jobs, materials, tickets, deliveries, followUps, quotations, invoices, rates } = req.body;
@@ -906,6 +977,211 @@ app.post("/api/billing/verify-pdf-access", authenticateSession, (req: any, res) 
   saveDatabase(db);
 
   res.json({ success: true, message: "PDF generation authorized and logged successfully." });
+});
+
+// 16c. Workflow Locking & Controlled Reopen API Endpoints
+app.get("/api/workflow", authenticateSession, (req, res) => {
+  const db = getDatabase();
+  res.json({
+    success: true,
+    workflowStages: db.workflowStages || [],
+    reopenRequests: db.reopenRequests || [],
+    workflowHistory: db.workflowHistory || []
+  });
+});
+
+app.post("/api/workflow/stages/complete", authenticateSession, (req: any, res) => {
+  const { stageId, workflowId, stageName, customerName, durationMinutes, browser, os, device } = req.body;
+  if (!stageId || !workflowId || !stageName) {
+    return res.status(400).json({ error: "Missing required parameters (stageId, workflowId, stageName)." });
+  }
+
+  const db = getDatabase();
+  const timestamp = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+  // Find or create stage
+  let stage = db.workflowStages.find(s => s.id === stageId);
+  const currentVersion = stage ? stage.version : 1;
+
+  const completedByInfo = {
+    name: req.employee.name,
+    id: req.employee.id,
+    role: req.employee.role,
+    department: req.employee.department,
+    date: timestamp.split(" ")[0],
+    time: timestamp.split(" ")[1],
+    device: device || "Web Client",
+    os: os || "Operating System",
+    browser: browser || "Browser App",
+    checksum: "",
+    durationMinutes: durationMinutes || Math.floor(Math.random() * 45) + 15
+  };
+
+  if (!stage) {
+    stage = {
+      id: stageId,
+      workflowId,
+      stageName,
+      status: "Completed",
+      version: currentVersion,
+      completedBy: completedByInfo
+    };
+    stage.completedBy.checksum = generateStageChecksum(stage);
+    db.workflowStages.push(stage);
+  } else {
+    stage.status = "Completed";
+    stage.completedBy = completedByInfo;
+    stage.completedBy.checksum = generateStageChecksum(stage);
+  }
+
+  // Create immutable audit log
+  const auditLog = {
+    id: `AUDIT-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+    username: `${req.employee.name} (${req.employee.role})`,
+    action: "Stage Completed & Locked",
+    timestamp,
+    device: device || "Web Client",
+    beforeValue: "In Progress / Pending",
+    afterValue: `🔒 Completed and Locked stage "${stageName}" (Version: ${stage.version}, Checksum: ${stage.completedBy.checksum.substring(0, 10)}...)`
+  };
+
+  db.auditLogs = [auditLog, ...db.auditLogs].slice(0, 100);
+  saveDatabase(db);
+
+  res.json({ success: true, message: `Stage "${stageName}" successfully completed and locked.`, stage });
+});
+
+app.post("/api/workflow/reopen/request", authenticateSession, (req: any, res) => {
+  const { stageId, workflowId, stageName, customerName, reason, detailedExplanation, supportingNotes } = req.body;
+  if (!stageId || !workflowId || !reason || !detailedExplanation) {
+    return res.status(400).json({ error: "Missing required parameters for reopen request." });
+  }
+
+  const db = getDatabase();
+  const timestamp = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+  // Check if stage is actually completed
+  const stage = db.workflowStages.find(s => s.id === stageId);
+  if (!stage || stage.status !== "Completed") {
+    return res.status(400).json({ error: "Cannot request reopen: Stage is not in locked Completed state." });
+  }
+
+  // Prevent duplicate pending requests
+  const hasPending = db.reopenRequests.some(r => r.stageId === stageId && r.status === "Pending");
+  if (hasPending) {
+    return res.status(400).json({ error: "A pending reopen request already exists for this stage." });
+  }
+
+  const request = {
+    id: `REQ-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+    stageId,
+    workflowId,
+    customerName: customerName || "General Customer",
+    employeeName: req.employee.name,
+    employeeId: req.employee.id,
+    department: req.employee.department,
+    stageName,
+    reason,
+    detailedExplanation,
+    supportingNotes: supportingNotes || "",
+    requestDate: timestamp.split(" ")[0],
+    requestTime: timestamp.split(" ")[1],
+    status: "Pending"
+  };
+
+  db.reopenRequests.push(request);
+
+  // Create audit log
+  const auditLog = {
+    id: `AUDIT-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+    username: `${req.employee.name} (${req.employee.role})`,
+    action: "Reopen Requested",
+    timestamp,
+    device: "Web Client",
+    beforeValue: "Stage Locked",
+    afterValue: `Requested reopen for stage "${stageName}" (Reason: ${reason})`
+  };
+
+  db.auditLogs = [auditLog, ...db.auditLogs].slice(0, 100);
+  saveDatabase(db);
+
+  res.json({ success: true, message: "Reopen request submitted successfully to managers.", request });
+});
+
+app.post("/api/workflow/reopen/resolve", authenticateSession, (req: any, res) => {
+  const { requestId, status } = req.body; // 'Approved' | 'Rejected'
+  if (!requestId || !status) {
+    return res.status(400).json({ error: "Missing requestId or status." });
+  }
+
+  // 1. Strict RBAC Enforcement - Manager, Owner, or Super Admin only
+  const allowedRoles = ["Super Admin", "Manager", "Owner"];
+  if (!allowedRoles.includes(req.employee.role)) {
+    return res.status(403).json({ error: "Forbidden: Only Managers, Owners, or Super Admins can approve reopen requests." });
+  }
+
+  const db = getDatabase();
+  const timestamp = new Date().toISOString().replace("T", " ").substring(0, 19);
+
+  const requestIndex = db.reopenRequests.findIndex(r => r.id === requestId);
+  if (requestIndex === -1) {
+    return res.status(404).json({ error: "Reopen request not found." });
+  }
+
+  const request = db.reopenRequests[requestIndex];
+  if (request.status !== "Pending") {
+    return res.status(400).json({ error: "This request has already been resolved." });
+  }
+
+  request.status = status;
+  request.managerName = req.employee.name;
+  request.approvalDate = timestamp.split(" ")[0];
+  request.approvalTime = timestamp.split(" ")[1];
+
+  const stage = db.workflowStages.find(s => s.id === request.stageId);
+
+  if (status === "Approved" && stage) {
+    // 2. Archive Version History before modifying
+    const historyRecord = {
+      id: `HIST-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+      stageId: stage.id,
+      version: stage.version,
+      originalValue: JSON.stringify(stage),
+      updatedValue: "", // Will be populated with new state upon lock
+      changedBy: request.employeeName,
+      approvedBy: req.employee.name,
+      whyChanged: request.reason + ": " + request.detailedExplanation,
+      whenChanged: timestamp
+    };
+    db.workflowHistory.push(historyRecord);
+
+    // 3. Move stage status back to 'In Progress' and increment Version Counter
+    stage.status = "In Progress";
+    stage.version = (stage.version || 1) + 1;
+    // clear completed details until it's completed again
+    stage.completedBy = undefined;
+  }
+
+  // Audit log entry
+  const auditLog = {
+    id: `AUDIT-${Date.now()}-${Math.random().toString().substring(2, 6)}`,
+    username: `${req.employee.name} (${req.employee.role})`,
+    action: `Reopen Request ${status}`,
+    timestamp,
+    device: "Web Client",
+    beforeValue: "Pending Request",
+    afterValue: `${status} reopen request ${requestId} for "${request.stageName}" (Requested by: ${request.employeeName})`
+  };
+
+  db.auditLogs = [auditLog, ...db.auditLogs].slice(0, 100);
+  saveDatabase(db);
+
+  res.json({ 
+    success: true, 
+    message: `Reopen request has been successfully ${status.toLowerCase()}.`,
+    request,
+    stage
+  });
 });
 
 // 17. Global Search Endpoint

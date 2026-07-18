@@ -37,7 +37,8 @@ import {
   Check,
   UserPlus,
   RefreshCw,
-  Search
+  Search,
+  MessageSquare
 } from 'lucide-react';
 
 import {
@@ -91,6 +92,8 @@ import OwnerDashboard from './components/OwnerDashboard';
 import SystemBlueprints from './components/SystemBlueprints';
 import SiteSurveyJobSystem from './components/SiteSurveyJobSystem';
 import UXRedesignPortal from './components/UXRedesignPortal';
+import WorkflowLockSystem from './components/WorkflowLockSystem';
+import OmnichannelInbox from './components/OmnichannelInbox';
 
 export default function App() {
   // --- STATE STORES ---
@@ -952,6 +955,21 @@ export default function App() {
               </button>
             )}
 
+            {/* WhatsApp Inbox / Omnichannel Center */}
+            {currentEmployee.permissions.viewCRM && (
+              <button
+                onClick={() => setActiveTab('whatsapp_inbox')}
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                  activeTab === 'whatsapp_inbox' 
+                    ? 'bg-zinc-100 text-zinc-900 font-semibold' 
+                    : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                {t('whatsappInbox')}
+              </button>
+            )}
+
             {/* Estimate Builder permission toggle */}
             {currentEmployee.permissions.viewCalculators && (
               <button
@@ -1102,6 +1120,19 @@ export default function App() {
               </button>
             )}
 
+            {/* Workflow Locking & Controlled Reopen Center */}
+            <button
+              onClick={() => setActiveTab('workflow_locks')}
+              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer ${
+                activeTab === 'workflow_locks' 
+                  ? 'bg-zinc-100 text-zinc-900 font-semibold border-l-2 border-red-600 pl-2' 
+                  : 'hover:bg-zinc-100/50 text-zinc-500 hover:text-zinc-900'
+              }`}
+            >
+              <Lock className="w-3.5 h-3.5 shrink-0 text-red-600" />
+              Workflow Security Center
+            </button>
+
           </div>
 
           {/* Evaluation Anchors (Styled beautifully) */}
@@ -1216,7 +1247,8 @@ export default function App() {
                   reports: lang === 'HI' ? 'रिपोर्ट्स' : 'Performance Reports',
                   staff_portal: lang === 'HI' ? 'स्टाफ पोर्टल' : 'Staff Workspace',
                   user_management: lang === 'HI' ? 'कर्मचारी प्रबंधन' : 'Employee Management',
-                  blueprints: lang === 'HI' ? 'ब्लूप्रिंट' : 'System Blueprints'
+                  blueprints: lang === 'HI' ? 'ब्लूप्रिंट' : 'System Blueprints',
+                  whatsapp_inbox: lang === 'HI' ? 'व्हाट्सएप और ओम्नीचैनल इनबॉक्स' : 'WhatsApp & Omnichannel Inbox'
                 };
                 return mapping[activeTab] || activeTab.replace('_', ' ').toUpperCase();
               })()}
@@ -1332,6 +1364,17 @@ export default function App() {
             />
           )}
 
+          {/* WhatsApp / Omnichannel Inbox Module */}
+          {activeTab === 'whatsapp_inbox' && currentEmployee.permissions.viewCRM && (
+            <OmnichannelInbox
+              customers={customers}
+              onUpdateCustomer={handleUpdateCustomer}
+              lang={lang}
+              currentUser={currentEmployee}
+              employees={employees}
+            />
+          )}
+
           {/* Estimate Builder / Calculator Module */}
           {activeTab === 'calculators' && currentEmployee.permissions.viewCalculators && (
             <CalculatorHub
@@ -1432,6 +1475,11 @@ export default function App() {
           {/* UX Redesign Proposal */}
           {activeTab === 'ux_redesign_portal' && (
             <UXRedesignPortal lang={lang} userRole={activeSubRole} />
+          )}
+
+          {/* Workflow Locking & Controlled Reopen Center */}
+          {activeTab === 'workflow_locks' && (
+            <WorkflowLockSystem currentEmployee={currentEmployee} lang={lang} />
           )}
 
           {/* INTERACTIVE USER MANAGEMENT & AUDIT LOG PANEL */}
