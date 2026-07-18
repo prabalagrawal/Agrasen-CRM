@@ -108,13 +108,13 @@ interface DatabaseSchema {
 const DEFAULT_EMPLOYEES_SEED: Employee[] = [
   {
     id: "EMP-001",
-    name: "Ramesh Sharma",
-    username: "ramesh",
+    name: "Nayan",
+    username: "nayan",
     passwordHash: hashPassword("123"), // hashed on initialization
     role: "Super Admin",
     department: "Administration",
     status: "Active",
-    createdDate: "2026-01-15 09:00:00",
+    createdDate: "2026-07-18 00:00:00",
     loginHistory: [],
     activityLogs: [],
     permissions: {
@@ -126,13 +126,13 @@ const DEFAULT_EMPLOYEES_SEED: Employee[] = [
   },
   {
     id: "EMP-002",
-    name: "Sunita Gupta",
-    username: "sunita",
-    passwordHash: hashPassword("123"),
+    name: "Jagrati",
+    username: "jagrati",
+    passwordHash: hashPassword("234"),
     role: "Office Executive",
     department: "Sales & Front Office",
     status: "Active",
-    createdDate: "2026-02-10 10:30:00",
+    createdDate: "2026-07-18 00:00:00",
     loginHistory: [],
     activityLogs: [],
     permissions: {
@@ -144,13 +144,13 @@ const DEFAULT_EMPLOYEES_SEED: Employee[] = [
   },
   {
     id: "EMP-003",
-    name: "Dilip Kumar",
-    username: "dilip",
-    passwordHash: hashPassword("123"),
+    name: "Lucky",
+    username: "lucky",
+    passwordHash: hashPassword("12345"),
     role: "Production Team",
     department: "Printing & Finishing Shop",
     status: "Active",
-    createdDate: "2026-03-01 11:00:00",
+    createdDate: "2026-07-18 00:00:00",
     loginHistory: [],
     activityLogs: [],
     permissions: {
@@ -162,13 +162,13 @@ const DEFAULT_EMPLOYEES_SEED: Employee[] = [
   },
   {
     id: "EMP-004",
-    name: "Sanjay Dutt",
-    username: "sanjay",
-    passwordHash: hashPassword("123"),
+    name: "Jittu",
+    username: "jittu",
+    passwordHash: hashPassword("0123"),
     role: "Field Team",
     department: "Field Surveys & Installation",
     status: "Active",
-    createdDate: "2026-04-12 12:00:00",
+    createdDate: "2026-07-18 00:00:00",
     loginHistory: [],
     activityLogs: [],
     permissions: {
@@ -301,8 +301,16 @@ function getDatabase(): DatabaseSchema {
     const raw = fs.readFileSync(DB_FILE, "utf8");
     const db: DatabaseSchema = JSON.parse(raw);
     
-    // Auto-backfill missing permissions to ensure absolute stability
+    // Check if new seed employees are present, if not, reset employees and sessions
+    const hasNayan = db.employees.some(e => e.username.toLowerCase() === "nayan");
     let dbUpdated = false;
+    if (!hasNayan) {
+      db.employees = DEFAULT_EMPLOYEES_SEED;
+      db.sessions = [];
+      dbUpdated = true;
+    }
+
+    // Auto-backfill missing permissions to ensure absolute stability
     db.employees = db.employees.map(emp => {
       if (!emp.permissions) {
         emp.permissions = getDefaultPermissionsForRole(emp.role);

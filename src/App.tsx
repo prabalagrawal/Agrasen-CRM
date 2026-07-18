@@ -1196,8 +1196,51 @@ export default function App() {
 
 
       {/* Main Content Area & Footer Column Wrapper */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0" id="main-content-column">
         
+        {/* Modern Interactive Top Bar */}
+        <header className="h-16 border-b border-zinc-200/40 bg-white/95 backdrop-blur-md px-6 flex items-center justify-between sticky top-0 z-30" id="workspace-top-bar">
+          <div className="flex items-center gap-2.5">
+            <span className="text-sm font-bold text-zinc-900 tracking-tight font-sans">
+              {(() => {
+                const mapping: Record<string, string> = {
+                  owner_dashboard: lang === 'HI' ? 'डैशबोर्ड' : 'Dashboard',
+                  crm: lang === 'HI' ? 'ग्राहक संबंध (CRM)' : 'Customer Directory (CRM)',
+                  calculators: lang === 'HI' ? 'कैलकुलेटर' : 'Estimate Builder',
+                  inventory: lang === 'HI' ? 'इन्वेंट्री' : 'Inventory Stock',
+                  tickets: lang === 'HI' ? 'टिकट' : 'Job Tickets',
+                  billing: lang === 'HI' ? 'बिलिंग' : 'Invoices & Payments',
+                  site_survey: lang === 'HI' ? 'साइट सर्वे' : 'Site Survey Logs',
+                  scheduler: lang === 'HI' ? 'शेड्यूलर' : 'Production Scheduler',
+                  followups: lang === 'HI' ? 'फॉलो-अप' : 'Payment Followups',
+                  reports: lang === 'HI' ? 'रिपोर्ट्स' : 'Performance Reports',
+                  staff_portal: lang === 'HI' ? 'स्टाफ पोर्टल' : 'Staff Workspace',
+                  user_management: lang === 'HI' ? 'कर्मचारी प्रबंधन' : 'Employee Management',
+                  blueprints: lang === 'HI' ? 'ब्लूप्रिंट' : 'System Blueprints'
+                };
+                return mapping[activeTab] || activeTab.replace('_', ' ').toUpperCase();
+              })()}
+            </span>
+            <span className="text-[10px] bg-zinc-100 text-zinc-650 px-2 py-0.5 rounded-md font-mono font-bold uppercase tracking-wider">
+              {currentEmployee.role}
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-500 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span>Logged in as: <strong className="text-zinc-850 font-bold">{currentEmployee.name}</strong></span>
+            </div>
+            <button
+              onClick={() => handleLogout()}
+              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-650 hover:text-red-700 text-xs font-semibold rounded-lg flex items-center gap-1.5 cursor-pointer transition-all border border-red-200/30 shadow-3xs"
+              title="Logout"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </header>
+
         {/* Content Panel Screen Renderer */}
         <main className="flex-1 p-6 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full">
           
