@@ -55,13 +55,13 @@ const FALLBACK_CUSTOMERS_KEY = 'abms_fallback_customers';
 const DEFAULT_EMPLOYEES_FALLBACK: Employee[] = [
   {
     id: 'EMP-001',
-    name: 'Ramesh Sharma',
-    username: 'ramesh',
-    passwordHash: '40bd001563085fc35165329ea1ff5c5ecbdbbeef', // SHA-256 for '123'
+    name: 'Nayan',
+    username: 'nayan',
+    passwordHash: 'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3', // SHA-256 for '123'
     role: 'Super Admin',
     department: 'Administration',
     status: 'Active',
-    createdDate: '2026-01-15 09:00:00',
+    createdDate: '2026-07-18 00:00:00',
     permissions: {
       viewDashboard: true, viewCRM: true, viewCalculators: true, viewInventory: true,
       viewTickets: true, viewBilling: true, viewSurvey: true, viewScheduler: true,
@@ -73,13 +73,13 @@ const DEFAULT_EMPLOYEES_FALLBACK: Employee[] = [
   },
   {
     id: 'EMP-002',
-    name: 'Sunita Gupta',
-    username: 'sunita',
-    passwordHash: '40bd001563085fc35165329ea1ff5c5ecbdbbeef',
+    name: 'Jagrati',
+    username: 'jagrati',
+    passwordHash: '114bd151f8fb0c58642d2170da4ae7d7c57977260ac2cc8905306cab6b2acabc', // SHA-256 for '234'
     role: 'Office Executive',
     department: 'Sales & Front Office',
     status: 'Active',
-    createdDate: '2026-02-10 10:30:00',
+    createdDate: '2026-07-18 00:00:00',
     permissions: {
       viewDashboard: true, viewCRM: true, viewCalculators: true, viewInventory: true,
       viewTickets: true, viewBilling: true, viewSurvey: true, viewScheduler: true,
@@ -91,16 +91,34 @@ const DEFAULT_EMPLOYEES_FALLBACK: Employee[] = [
   },
   {
     id: 'EMP-003',
-    name: 'Dilip Kumar',
-    username: 'dilip',
-    passwordHash: '40bd001563085fc35165329ea1ff5c5ecbdbbeef',
+    name: 'Lucky',
+    username: 'lucky',
+    passwordHash: '5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5', // SHA-256 for '12345'
     role: 'Production Team',
     department: 'Printing & Finishing Shop',
     status: 'Active',
-    createdDate: '2026-03-01 11:00:00',
+    createdDate: '2026-07-18 00:00:00',
     permissions: {
       viewDashboard: true, viewCRM: false, viewCalculators: false, viewInventory: true,
       viewTickets: true, viewBilling: false, viewSurvey: false, viewScheduler: false,
+      viewFollowups: false, viewReports: false, viewUserManagement: false, viewAuditLog: false,
+      createQuotation: false, deleteRecords: false, viewPricing: false, changeSettings: false
+    },
+    loginHistory: [],
+    activityLogs: []
+  },
+  {
+    id: 'EMP-004',
+    name: 'Jittu',
+    username: 'jittu',
+    passwordHash: '1be2e452b46d7a0d9656bbb1f768e8248eba1b75baed65f5d99eafa948899a6a', // SHA-256 for '0123'
+    role: 'Field Team',
+    department: 'Field Surveys & Installation',
+    status: 'Active',
+    createdDate: '2026-07-18 00:00:00',
+    permissions: {
+      viewDashboard: true, viewCRM: false, viewCalculators: false, viewInventory: false,
+      viewTickets: true, viewBilling: false, viewSurvey: true, viewScheduler: true,
       viewFollowups: false, viewReports: false, viewUserManagement: false, viewAuditLog: false,
       createQuotation: false, deleteRecords: false, viewPricing: false, changeSettings: false
     },
@@ -141,11 +159,24 @@ const DEFAULT_CUSTOMERS_FALLBACK: Customer[] = [
 
 function getFallbackEmployees(): Employee[] {
   const local = localStorage.getItem(FALLBACK_EMPLOYEES_KEY);
-  if (!local) {
-    localStorage.setItem(FALLBACK_EMPLOYEES_KEY, JSON.stringify(DEFAULT_EMPLOYEES_FALLBACK));
-    return DEFAULT_EMPLOYEES_FALLBACK;
+  if (local) {
+    try {
+      const emps: Employee[] = JSON.parse(local);
+      const hasNayan = emps.some(e => e.username.toLowerCase() === 'nayan');
+      if (!hasNayan) {
+        localStorage.removeItem(FALLBACK_EMPLOYEES_KEY);
+        localStorage.removeItem(FALLBACK_SESSIONS_KEY);
+        localStorage.setItem(FALLBACK_EMPLOYEES_KEY, JSON.stringify(DEFAULT_EMPLOYEES_FALLBACK));
+        return DEFAULT_EMPLOYEES_FALLBACK;
+      }
+      return emps;
+    } catch (e) {
+      localStorage.setItem(FALLBACK_EMPLOYEES_KEY, JSON.stringify(DEFAULT_EMPLOYEES_FALLBACK));
+      return DEFAULT_EMPLOYEES_FALLBACK;
+    }
   }
-  return JSON.parse(local);
+  localStorage.setItem(FALLBACK_EMPLOYEES_KEY, JSON.stringify(DEFAULT_EMPLOYEES_FALLBACK));
+  return DEFAULT_EMPLOYEES_FALLBACK;
 }
 
 function saveFallbackEmployees(emps: Employee[]) {
